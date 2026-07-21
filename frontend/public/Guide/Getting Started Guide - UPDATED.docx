@@ -1,0 +1,211 @@
+Getting Started Guide: HANA CV to SQL Converter
+Updated: March 2026
+
+This guide will walk you through using our powerful SaaS platform, which converts SAP HANA Calculation Views into optimized SQL code compatible with modern databases like Google BigQuery, Snowflake, Databricks, Redshift, SAP DataSphere, Microsoft Fabric, and Azure Synapse Analytics.
+
+================================================================================
+1. Introduction
+================================================================================
+
+What Our Tool Does
+
+Our platform efficiently converts SAP HANA Calculation Views into highly optimized SQL code and PySpark notebooks. This automates the time-consuming process of manual re-coding, significantly accelerating data migration and cloud adoption projects.
+
+Who Should Use This Tool
+
+This tool is for SAP BW HANA consultants, data engineers, and migration teams who need to transition their data models and business logic from SAP HANA to flexible, scalable SQL-based data warehousing solutions.
+
+Key Benefits
+
+✓ Substantial Time Savings: Automates a traditionally manual process.
+✓ Unparalleled Accuracy: Achieves 95% accuracy for most standard Calculation Views, minimizing post-conversion adjustments.
+✓ Broad Cross-Platform Compatibility: Supports a wide range of target databases.
+✓ Dual Output Formats: Generate both SQL queries and PySpark notebooks.
+✓ Interactive Visualization: View CTE dependencies with interactive flow diagrams.
+✓ Streamlined Workflow: Reduces manual effort and lowers overall project costs.
+✓ Data Privacy: Your raw XML files are never stored and are deleted right after conversion. Only your converted files are safely kept in the cloud.
+
+================================================================================
+2. Accessing and Setting Up Your Account
+================================================================================
+
+Accessing the Platform
+
+You can securely access our platform through your web browser at https://hanacv2sql.com. For the best experience, we recommend using the latest version of Google Chrome, Microsoft Edge, or Mozilla Firefox with JavaScript enabled. A minimum screen resolution of 1280x800 pixels is recommended for optimal viewing.
+
+Creating an Account
+
+To get started, click the "Sign Up" button on the homepage. You will be prompted to provide your email address and create a password. You can also sign up or log in using your existing Google or Email account for added convenience. After signing up, you'll receive an email with a verification link. Be sure to click this link to activate your account and gain full access.
+
+No Credit Card Required: You can start converting immediately with our free tier - no credit card needed!
+
+================================================================================
+3. Navigating the Dashboard and Available Tools
+================================================================================
+
+After you log in, your dashboard is your central control panel, giving you access to all your tools and account information.
+
+Available Tools and Their Usage
+
+--- TOOL 1: HANA CV to SQL Converter ---
+
+This tool converts the logic from your HANA Calculation Views into standard SQL queries.
+
+How to Use:
+
+Step 1: Get XML File from HANA Studio
+To obtain the XML file from HANA Studio:
+- Open the relevant Calculation View in HANA Studio
+- In the toolbar, click on the "XML" icon
+- Select "Display View XML" from the dropdown menu
+- Save the XML content to a file
+
+Step 2: Upload XML Files
+Upload your View XML file. The platform accepts .xml or .txt formats.
+
+Step 3: Process Files
+Click the "Process" button. The tool validates the file, shows the node count, and identifies if the conversion is paid or free.
+
+Step 4: Get Results
+Once processed, a ZIP file containing the converted SQL queries and node-level logic is available for download. This file, along with an encrypted Excel sheet for data mapping, is stored on your Account > Conversions page.
+
+Pro Tips:
+• For best results, validate your XML files before uploading them.
+• You may need to make minor adjustments to the SQL after conversion to ensure it works perfectly in your target system.
+• Files with complex custom calculations or very specialized HANA functions may require minor manual adjustments.
+
+--- Interactive CTE Flow during Conversion ---
+
+During conversion, the system generates an interactive CTE flow diagram showing how each CTE is connected to the others. This allows you to easily determine dependencies, which can then be documented for future reference. The visualization uses color-coded connections to help you understand the data flow.
+
+--- TOOL 2: SQL/PySpark Mapping Engine ---
+
+This engine generates SQL or PySpark notebooks based on custom table and column mappings for your target system.
+
+How to Use:
+
+Step 1: Select Target Data Processing System
+Choose your desired target system from the provided options:
+• Google BigQuery
+• Azure Synapse Analytics
+• Amazon Redshift
+• Snowflake
+• Databricks
+• SAP DataSphere
+• Microsoft Fabric (NEW!)
+
+Step 2: Select Output Format
+Choose your preferred output format:
+• SQL (.sql file)
+• PySpark Notebook (.ipynb file) - NEW!
+
+Step 3: Upload Your Encrypted XLSX Mapping File
+Upload the encrypted Excel mapping file (.xlsx) you received from a previous conversion. You can find this file on the Account > Conversions page, or select directly from your conversion history.
+
+Step 4: Update Custom Mapping and Generate
+Update the custom table and column mappings to match your target system, then click "Process" to generate the new SQL or PySpark code.
+
+Bulk Mapping Features:
+• Bulk Paste: You can paste multiple values at once into the mapping table
+• Smart Table Mapping: When you update a target table name, all rows with the same source table are automatically updated
+• Real-time Preview: See your changes reflected instantly
+
+Step 5: Download Generated Output
+Download the generated file containing your transformed queries:
+• SQL file (.sql) for standard SQL output
+• PySpark Notebook (.ipynb) for Databricks/Spark environments
+
+================================================================================
+4. Account Information
+================================================================================
+
+The Account Dashboard provides a comprehensive overview of your activity and settings, organized into several tabs.
+
+Quick Stats (Dashboard Overview): Get a snapshot of your account's health. You'll see your Available Credits, the Total Conversions you've performed, and your Account Status along with your membership date.
+
+Profile Tab: Manage your personal information. This is where you can view your email address, update your display name, and see your current credit balance. You can also securely sign out from this tab.
+
+Conversions Tab: This tab is your conversion history log. For each conversion, you'll see:
+• File Name
+• Date
+• Type (Paid or Free)
+• Nodes involved
+• Credits consumed
+
+You can also download the SQL and mapping files from this page.
+
+Purchases Tab: View a detailed history of your credit purchases. Each entry shows the purchase Date, Type, the number of Credits acquired, and the Amount of the transaction.
+
+================================================================================
+5. Pricing & Subscription
+================================================================================
+
+Free Tier
+
+New users receive 5 free conversions per day for Calculation Views with 1–10 nodes. No credit card or signup is required to start converting!
+
+Credit System
+
+Our transparent credit system is based on the number of nodes in your HANA Calculation View, where 1 Credit = $1.
+
+Node-Based Pricing:
+• 1–10 Nodes: 10 credits
+• 10–20 Nodes: 10 credits  
+• 20–40 Nodes: 20 credits
+• 40+ Nodes: 30 credits
+
+Note: Paid conversions are only required for files exceeding the free tier limits. Files with 10 or fewer nodes always qualify for free conversion (subject to daily limit).
+
+Purchased credits do not expire. You can easily purchase more credits at any time through your profile settings. For Enterprise solutions, contact us for custom pricing.
+
+================================================================================
+6. Video Tutorials
+================================================================================
+
+We provide comprehensive video tutorials to help you get started:
+
+• SAP HANA to Snowflake Migration Tutorial
+  Learn the complete migration process from HANA to Snowflake
+  
+• HANA Calculation Views to SQL Migration
+  Step-by-step guide for automated conversion
+
+Access these tutorials from the Help Center > Video Tutorials section on our website.
+
+================================================================================
+7. Troubleshooting & FAQ
+================================================================================
+
+Common Questions:
+
+Q: Will HANACV2SQL convert each node to a CTE as-is?
+A: No. Mapping each node to a separate CTE may work, but it's not the most performant or industry-standard approach. Our tool intelligently optimizes the SQL by reducing the number of nodes wherever possible, generating highly efficient and performant SQL.
+
+Q: How accurate is the conversion process?
+A: Our conversion engine achieves 95% accuracy for most standard Calculation Views. Complex custom calculations or very specialized HANA functions may require minor manual adjustments, which our tool will highlight for you.
+
+Q: Is my data secure during the conversion process?
+A: Yes! Your raw XML files are never stored and are deleted right after conversion. Only your converted files are safely kept in the cloud, so you can access them anytime in the future. Your privacy and data security are our top priority.
+
+Q: What output formats are supported?
+A: We support both SQL (.sql) and PySpark Notebook (.ipynb) output formats, making it easy to migrate to both traditional databases and Spark-based environments like Databricks.
+
+Common Login Issues: Solutions for forgotten passwords, account lockouts, or email verification problems.
+
+Conversion Errors: A guide to understanding and resolving common error messages.
+
+Subscription Issues: How to check your credit balance and manage your plan.
+
+Support: For direct assistance, you can reach our support team via email at support@hanacv2sql.com.
+
+================================================================================
+8. How to Submit Feedback
+================================================================================
+
+We value your input! Please use the in-app feedback form or email us at support@hanacv2sql.com to suggest improvements or report issues.
+
+================================================================================
+Version History
+================================================================================
+• March 2026: Added PySpark Notebook output, Microsoft Fabric support, bulk mapping features, and video tutorials
+• Original Version: September 2025

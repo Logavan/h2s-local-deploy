@@ -1,0 +1,15 @@
+User-agent: *
+Allow: /
+
+Disallow: /account/
+Disallow: /admin-reviews/
+Disallow: /api/
+Disallow: /auth/
+Disallow: /debug/
+Disallow: /login/
+Disallow: /manage-reviews/
+Disallow: /signup/
+Disallow: /update-password/
+Disallow: /forgot-password/
+
+Sitemap: https://hanacv2sql.com/sitemap.xml

@@ -1,0 +1,45 @@
+# Web framework
+Flask[async]==2.3.3
+Flask-CORS==4.0.0
+gunicorn==21.2.0
+waitress==2.1.2
+Werkzeug==2.3.7
+
+# Environment variables
+python-dotenv==1.0.0
+
+# HTTP Clients
+requests==2.32.3
+urllib3==2.2.1
+httpx>=0.27.0,<0.28.0
+
+# Supabase client
+supabase>=2.10.0
+
+# XML
+xmltodict==0.13.0
+defusedxml
+
+# SQL Parsing / Linting
+sqlparse==0.4.4
+sqlfluff==2.3.5
+sqlglot==18.5.0
+
+# OpenAI & Generative AI
+openai>=1.0.0
+google-genai
+google-auth
+
+# Google Cloud
+google-cloud-bigquery>=3.20.0
+google-cloud-storage>=2.18.0
+
+# Encryption
+cryptography
+
+# Data processing
+pandas
+tenacity
+pyzipper
+xlsxwriter
+openpyxl
