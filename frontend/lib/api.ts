@@ -755,6 +755,8 @@ import type {
   OutputFormat,
 } from "./nested-cv-types"
 
+const apiUrl = getApiBaseUrl()
+
 export async function nestedCreateSession(
   req: CreateSessionRequest
 ): Promise<CreateSessionResponse> {
