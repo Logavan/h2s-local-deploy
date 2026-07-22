@@ -28,6 +28,20 @@ from werkzeug.utils import secure_filename
 import local_storage
 import uuid
 from mapping_sql_generator import generate_sql_from_mapping
+from nested_cv import (
+    get_session_store,
+    parse_mapping_content,
+    build_graph,
+    auto_resolve_links,
+    MappingService,
+    start_generation_task,
+    get_generation_result,
+    NestedSession,
+    CvArtifact,
+    DependencyLink,
+    MappingEntry,
+    EmissionMode,
+)
 from excel_encrypt import decrypt_xlsx_file
 from api_client import api_call_flash, api_call
 import base64
@@ -1105,6 +1119,339 @@ def bulk_download(bulk_task_id):
 
 # Global variable for bulk task tracking (supplementary to bulk_processor)
 bulk_tasks = {}
+
+# ==================== NESTED CV FLATTENER ENDPOINTS ====================
+
+def _session_or_404(session_id: str):
+    store = get_session_store()
+    session = store.get_session(session_id)
+    if not session:
+        return jsonify({"error": "Session not found"}), 404
+    return session
+
+
+# POST /api/nested/sessions — Create session
+@app.route('/api/nested/sessions', methods=['POST', 'OPTIONS'])
+def nested_create_session():
+    if request.method == 'OPTIONS':
+        return '', 200
+    try:
+        data = request.get_json() or {}
+        target_dialect = data.get("target_dialect", "bigquery")
+        output_format = data.get("output_format", "sql")
+        if output_format not in ("sql", "pyspark"):
+            return jsonify({"error": "Invalid output_format. Must be 'sql' or 'pyspark'"}), 400
+
+        store = get_session_store()
+        session = store.create_session(target_dialect, output_format)
+        return jsonify({"success": True, "session": session.to_dict()}), 200
+    except Exception as e:
+        logger.error(f"nested_create_session error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+# GET /api/nested/sessions/<session_id> — Get session
+@app.route('/api/nested/sessions/<session_id>', methods=['GET', 'OPTIONS'])
+def nested_get_session(session_id):
+    if request.method == 'OPTIONS':
+        return '', 200
+    result = _session_or_404(session_id)
+    if isinstance(result, tuple):
+        return result
+    return jsonify({"success": True, "session": result.to_dict()}), 200
+
+
+# DELETE /api/nested/sessions/<session_id> — Delete session
+@app.route('/api/nested/sessions/<session_id>', methods=['DELETE', 'OPTIONS'])
+def nested_delete_session(session_id):
+    if request.method == 'OPTIONS':
+        return '', 200
+    store = get_session_store()
+    deleted = store.delete_session(session_id)
+    if not deleted:
+        return jsonify({"error": "Session not found"}), 404
+    return jsonify({"success": True}), 200
+
+
+# POST /api/nested/sessions/<session_id>/cvs — Add CV
+@app.route('/api/nested/sessions/<session_id>/cvs', methods=['POST', 'OPTIONS'])
+def nested_add_cv(session_id):
+    if request.method == 'OPTIONS':
+        return '', 200
+    session = _session_or_404(session_id)
+    if isinstance(session, tuple):
+        return session
+    try:
+        data = request.get_json() or {}
+        file_content = data.get("file_content", "")
+        file_name = data.get("file_name", "uploaded.xlsx")
+        password = data.get("password")
+
+        if not file_content:
+            return jsonify({"error": "No file content provided"}), 400
+
+        artifact = parse_mapping_content(file_content, file_name, password)
+
+        # Auto-resolve links
+        all_artifacts = list(session.artifacts.values()) + [artifact]
+        proposed_links = auto_resolve_links(all_artifacts)
+
+        # Add artifact to session
+        session.artifacts[artifact.artifact_id] = artifact
+
+        # Add auto-resolved links
+        for link in proposed_links:
+            existing = [l for l in session.dependency_links
+                        if l.consumer_artifact_id == link.consumer_artifact_id
+                        and l.source_ref_canonical == link.source_ref_canonical]
+            if not existing:
+                session.dependency_links.append(link)
+
+        # Auto-add mappings from this artifact
+        ms = MappingService(list(session.artifacts.values()), session.global_mappings)
+        for m in artifact.mapping_rows:
+            if m.artifact_id is None:
+                m.artifact_id = artifact.artifact_id
+        session.global_mappings.extend(artifact.mapping_rows)
+
+        store = get_session_store()
+        store.update_session(session)
+
+        return jsonify({"success": True, "artifact": artifact.to_dict()}), 200
+    except Exception as e:
+        logger.error(f"nested_add_cv error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+# PATCH /api/nested/sessions/<session_id>/cvs/<artifact_id> — Update CV
+@app.route('/api/nested/sessions/<session_id>/cvs/<artifact_id>', methods=['PATCH', 'OPTIONS'])
+def nested_update_cv(session_id, artifact_id):
+    if request.method == 'OPTIONS':
+        return '', 200
+    session = _session_or_404(session_id)
+    if isinstance(session, tuple):
+        return session
+    try:
+        data = request.get_json() or {}
+        artifact = session.artifacts.get(artifact_id)
+        if not artifact:
+            return jsonify({"error": "Artifact not found"}), 404
+
+        if "emission_mode" in data:
+            artifact.emission_mode = data["emission_mode"]
+        if "target_view_name" in data:
+            artifact.target_view_name = data["target_view_name"]
+        if "cv_display_name" in data:
+            artifact.cv_display_name = data["cv_display_name"]
+
+        store = get_session_store()
+        store.update_session(session)
+        return jsonify({"success": True, "artifact": artifact.to_dict()}), 200
+    except Exception as e:
+        logger.error(f"nested_update_cv error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+# DELETE /api/nested/sessions/<session_id>/cvs/<artifact_id> — Remove CV
+@app.route('/api/nested/sessions/<session_id>/cvs/<artifact_id>', methods=['DELETE', 'OPTIONS'])
+def nested_delete_cv(session_id, artifact_id):
+    if request.method == 'OPTIONS':
+        return '', 200
+    session = _session_or_404(session_id)
+    if isinstance(session, tuple):
+        return session
+    if artifact_id in session.artifacts:
+        del session.artifacts[artifact_id]
+    # Remove affected links
+    session.dependency_links = [
+        l for l in session.dependency_links
+        if l.consumer_artifact_id != artifact_id and l.producer_artifact_id != artifact_id
+    ]
+    # Remove affected mappings
+    session.global_mappings = [
+        m for m in session.global_mappings if m.artifact_id != artifact_id
+    ]
+    store = get_session_store()
+    store.update_session(session)
+    return jsonify({"success": True}), 200
+
+
+# PUT /api/nested/sessions/<session_id>/links — Save dependency resolutions
+@app.route('/api/nested/sessions/<session_id>/links', methods=['PUT', 'OPTIONS'])
+def nested_resolve_links(session_id):
+    if request.method == 'OPTIONS':
+        return '', 200
+    session = _session_or_404(session_id)
+    if isinstance(session, tuple):
+        return session
+    try:
+        data = request.get_json() or {}
+        links_data = data.get("links", [])
+        session.dependency_links = [
+            DependencyLink(
+                consumer_artifact_id=l["consumer_artifact_id"],
+                source_ref_canonical=l["source_ref_canonical"],
+                resolution=l["resolution"],
+                producer_artifact_id=l.get("producer_artifact_id"),
+            )
+            for l in links_data
+        ]
+        store = get_session_store()
+        store.update_session(session)
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        logger.error(f"nested_resolve_links error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+# PUT /api/nested/sessions/<session_id>/mappings — Save unified mappings
+@app.route('/api/nested/sessions/<session_id>/mappings', methods=['PUT', 'OPTIONS'])
+def nested_update_mappings(session_id):
+    if request.method == 'OPTIONS':
+        return '', 200
+    session = _session_or_404(session_id)
+    if isinstance(session, tuple):
+        return session
+    try:
+        data = request.get_json() or {}
+        mappings_data = data.get("mappings", [])
+        session.global_mappings = [
+            MappingEntry(
+                source_ref_canonical=m["source_ref_canonical"],
+                source_column_raw=m["source_column_raw"],
+                target_table=m["target_table"],
+                target_column=m["target_column"],
+                artifact_id=m.get("artifact_id"),
+            )
+            for m in mappings_data
+        ]
+        store = get_session_store()
+        store.update_session(session)
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        logger.error(f"nested_update_mappings error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+# POST /api/nested/sessions/<session_id>/validate — Validate graph
+@app.route('/api/nested/sessions/<session_id>/validate', methods=['POST', 'OPTIONS'])
+def nested_validate(session_id):
+    if request.method == 'OPTIONS':
+        return '', 200
+    session = _session_or_404(session_id)
+    if isinstance(session, tuple):
+        return session
+    try:
+        artifacts = list(session.artifacts.values())
+        links = session.dependency_links
+        mappings = session.global_mappings
+
+        if not artifacts:
+            return jsonify({
+                "success": False,
+                "valid": False,
+                "errors": [{"level": "error", "code": "NO_ARTIFACTS", "message": "No CVs added to session"}],
+                "warnings": [],
+            }), 200
+
+        # Build graph and validate
+        graph = build_graph(artifacts, links)
+        graph_errors, graph_warnings = graph.validate()
+
+        # Validate mappings
+        ms = MappingService(artifacts, mappings)
+        map_errors, map_warnings = ms.validate()
+
+        all_errors = graph_errors + map_errors
+        all_warnings = graph_warnings + map_warnings
+
+        summary = graph.build_summary().to_dict() if not all_errors else None
+
+        return jsonify({
+            "success": True,
+            "valid": len(all_errors) == 0,
+            "errors": [e.to_dict() if hasattr(e, 'to_dict') else e for e in all_errors],
+            "warnings": [w.to_dict() if hasattr(w, 'to_dict') else w for w in all_warnings],
+            "graph_summary": summary,
+        }), 200
+    except Exception as e:
+        logger.error(f"nested_validate error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+# POST /api/nested/sessions/<session_id>/generate — Start generation
+@app.route('/api/nested/sessions/<session_id>/generate', methods=['POST', 'OPTIONS'])
+def nested_generate(session_id):
+    if request.method == 'OPTIONS':
+        return '', 200
+    session = _session_or_404(session_id)
+    if isinstance(session, tuple):
+        return session
+    try:
+        task = start_generation_task(session)
+        return jsonify({"success": True, "task_id": task.task_id}), 202
+    except Exception as e:
+        logger.error(f"nested_generate error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+# GET /api/nested/tasks/<task_id> — Get task status
+@app.route('/api/nested/tasks/<task_id>', methods=['GET', 'OPTIONS'])
+def nested_get_task(task_id):
+    if request.method == 'OPTIONS':
+        return '', 200
+    store = get_session_store()
+    task = store.get_task(task_id)
+    if not task:
+        return jsonify({"error": "Task not found"}), 404
+    return jsonify({
+        "task_id": task.task_id,
+        "status": task.status,
+        "progress": task.progress,
+        "message": task.message,
+        "result_url": task.result_url,
+        "diagnostics": [d.to_dict() if hasattr(d, 'to_dict') else d for d in task.diagnostics],
+    }), 200
+
+
+# GET /api/nested/tasks/<task_id>/download — Download result
+@app.route('/api/nested/tasks/<task_id>/download', methods=['GET', 'OPTIONS'])
+def nested_download(task_id):
+    if request.method == 'OPTIONS':
+        return '', 200
+    import os as _os
+    from dotenv import load_dotenv
+    load_dotenv()
+    output_dir = _os.environ.get("OUTPUT_DIR", "/tmp/h2s_output")
+    filename = f"nested_cv_{task_id[:8]}"
+    logger.info(f"[DOWNLOAD] task_id={task_id} output_dir={output_dir}")
+    for ext in ('.pyspark', '.sql'):
+        fp = _os.path.join(output_dir, filename + ext)
+        logger.info(f"[DOWNLOAD] checking {fp} exists={_os.path.exists(fp)}")
+    store = get_session_store()
+    task = store.get_task(task_id)
+    logger.info(f"[DOWNLOAD] task={'found' if task else 'NOT FOUND'} status={task.status if task else None}")
+    if not task:
+        return jsonify({"error": "Task not found"}), 404
+    if task.status != "COMPLETED":
+        return jsonify({"error": "Task not completed"}), 400
+
+    filepath = get_generation_result(task)
+    logger.info(f"[DOWNLOAD] get_generation_result returned filepath={filepath}")
+    if not filepath or not _os.path.exists(filepath):
+        logger.info(f"[DOWNLOAD] filepath not found on disk")
+        return jsonify({"error": "Result file not found"}), 404
+
+    filename = os.path.basename(filepath)
+    ext = os.path.splitext(filename)[1]
+    mimetype = 'text/x-sql' if ext == '.sql' else 'text/plain'
+
+    return send_file(
+        filepath,
+        as_attachment=True,
+        download_name=filename,
+        mimetype=mimetype,
+    )
 
 # Add the rest of your routes here...
 # (Keep all your existing routes)

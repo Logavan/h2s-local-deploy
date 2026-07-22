@@ -1,21 +1,24 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { Database, FileSpreadsheet } from "lucide-react"
+import { Database, FileSpreadsheet, GitMerge } from "lucide-react"
+
+type TabId = "converter" | "mapper" | "nested"
 
 interface TabSwitcherProps {
-  activeTab: "converter" | "mapper"
-  onTabChange: (tab: "converter" | "mapper") => void
+  activeTab: TabId
+  onTabChange: (tab: TabId) => void
 }
 
 export default function TabSwitcher({ activeTab, onTabChange }: TabSwitcherProps) {
-  const handleTabClick = (tab: "converter" | "mapper") => {
+  const handleTabClick = (tab: TabId) => {
     onTabChange(tab)
   }
 
-  const tabs = [
-    { id: "converter" as const, label: "HANA CV Converter", icon: Database },
-    { id: "mapper" as const, label: "SQL/PySpark Mapping Engine", icon: FileSpreadsheet },
+  const tabs: { id: TabId; label: string; icon: React.ElementType }[] = [
+    { id: "converter", label: "HANA CV Converter", icon: Database },
+    { id: "mapper", label: "SQL/PySpark Mapping Engine", icon: FileSpreadsheet },
+    { id: "nested", label: "Nested CV Flattener", icon: GitMerge },
   ]
 
   const activeIndex = tabs.findIndex(t => t.id === activeTab)
@@ -34,8 +37,8 @@ export default function TabSwitcher({ activeTab, onTabChange }: TabSwitcherProps
             className="absolute top-1.5 bottom-1.5 bg-gradient-to-r from-amber-400 to-amber-500 rounded-lg shadow-lg shadow-amber-500/30"
             initial={false}
             animate={{
-              left: activeIndex === 0 ? "6px" : "calc(50% + 3px)",
-              width: activeIndex === 0 ? "calc(50% - 9px)" : "calc(50% - 9px)",
+              left: `${(100 / tabs.length) * activeIndex + 0.25}%`,
+              width: `${100 / tabs.length - 0.5}%`,
             }}
             transition={{ type: "spring", stiffness: 400, damping: 35 }}
           />
@@ -71,7 +74,9 @@ export default function TabSwitcher({ activeTab, onTabChange }: TabSwitcherProps
                   }`}
                 />
                 <span className="hidden sm:inline">{tab.label}</span>
-                <span className="sm:hidden">{tab.id === "converter" ? "Converter" : "Mapper"}</span>
+                <span className="sm:hidden">
+                  {tab.id === "converter" ? "Converter" : tab.id === "mapper" ? "Mapper" : "Nested"}
+                </span>
               </span>
 
               {/* Active indicator dot */}

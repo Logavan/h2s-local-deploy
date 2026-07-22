@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import ConversionTool from "@/components/ConversionTool"
 import MappingTool from "@/components/MappingTool"
+import NestedCVTool from "@/components/nested-cv/NestedCVTool"
 import TabSwitcher from "@/components/TabSwitcher"
 import { useAuth } from "@/contexts/AuthContext"
 import { useSearchParams } from "next/navigation"
@@ -50,6 +51,8 @@ export default function HomeClient() {
 
         if (tab === "mapper") {
             setActiveTab("mapper")
+        } else if (tab === "nested") {
+            setActiveTab("nested")
         } else {
             setActiveTab("converter")
         }
@@ -99,7 +102,7 @@ export default function HomeClient() {
             <main className="w-full overflow-x-hidden">
                     {/* Tools Section */}
                     <div id="tools-section" className="container mx-auto px-4 py-8" style={{ scrollMarginTop: '80px' }}>
-                        <TabSwitcher activeTab={activeTab as "converter" | "mapper"} onTabChange={handleTabChange} />
+                        <TabSwitcher activeTab={activeTab as "converter" | "mapper" | "nested"} onTabChange={handleTabChange} />
                         <AnimatePresence mode="wait">
                             <motion.div
                                 key={activeTab}
@@ -108,7 +111,7 @@ export default function HomeClient() {
                                 exit={{ opacity: 0, y: -10 }}
                                 transition={{ duration: 0.2 }}
                             >
-                                {activeTab === "converter" ? <ConversionTool /> : <MappingTool />}
+                                {activeTab === "converter" ? <ConversionTool /> : activeTab === "mapper" ? <MappingTool /> : <NestedCVTool />}
                             </motion.div>
                         </AnimatePresence>
                     </div>

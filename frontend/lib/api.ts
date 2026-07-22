@@ -742,6 +742,236 @@ export async function checkConversionRunningStatus(
   }
 }
 
+// ============ Nested CV Flattener API Functions ============
+
+import type {
+  CreateSessionRequest, CreateSessionResponse,
+  AddCvRequest, AddCvResponse,
+  UpdateCvRequest,
+  ResolveLinksRequest, UpdateMappingsRequest,
+  ValidateResponse, GenerateResponse, TaskStatusResponse,
+  NestedSession, CvArtifact, DependencyLink, MappingEntry,
+  GraphSummary, NestedTask, Diagnostic,
+  OutputFormat,
+} from "./nested-cv-types"
+
+export async function nestedCreateSession(
+  req: CreateSessionRequest
+): Promise<CreateSessionResponse> {
+  try {
+    const response = await fetchWithTimeout(`${apiUrl}/api/nested/sessions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req),
+    })
+    return handleResponse<CreateSessionResponse>(response)
+  } catch (error) {
+    console.error("Failed to create nested session:", error)
+    return { success: false, error: error instanceof Error ? error.message : "Failed to create session" }
+  }
+}
+
+export async function nestedGetSession(sessionId: string): Promise<{ success: boolean; session?: NestedSession; error?: string }> {
+  try {
+    const response = await fetchWithTimeout(`${apiUrl}/api/nested/sessions/${sessionId}`, {
+      method: "GET",
+    })
+    return handleResponse<{ success: boolean; session?: NestedSession; error?: string }>(response)
+  } catch (error) {
+    console.error("Failed to get nested session:", error)
+    return { success: false, error: error instanceof Error ? error.message : "Failed to get session" }
+  }
+}
+
+export async function nestedAddCv(
+  sessionId: string,
+  req: AddCvRequest
+): Promise<AddCvResponse> {
+  try {
+    const response = await fetchWithTimeout(`${apiUrl}/api/nested/sessions/${sessionId}/cvs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req),
+    })
+    return handleResponse<AddCvResponse>(response)
+  } catch (error) {
+    console.error("Failed to add CV:", error)
+    return { success: false, error: error instanceof Error ? error.message : "Failed to add CV" }
+  }
+}
+
+export async function nestedUpdateCv(
+  sessionId: string,
+  artifactId: string,
+  req: UpdateCvRequest
+): Promise<{ success: boolean; artifact?: CvArtifact; error?: string }> {
+  try {
+    const response = await fetchWithTimeout(`${apiUrl}/api/nested/sessions/${sessionId}/cvs/${artifactId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req),
+    })
+    return handleResponse(response)
+  } catch (error) {
+    console.error("Failed to update CV:", error)
+    return { success: false, error: error instanceof Error ? error.message : "Failed to update CV" }
+  }
+}
+
+export async function nestedDeleteCv(
+  sessionId: string,
+  artifactId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const response = await fetchWithTimeout(`${apiUrl}/api/nested/sessions/${sessionId}/cvs/${artifactId}`, {
+      method: "DELETE",
+    })
+    return handleResponse(response)
+  } catch (error) {
+    console.error("Failed to delete CV:", error)
+    return { success: false, error: error instanceof Error ? error.message : "Failed to delete CV" }
+  }
+}
+
+export async function nestedResolveLinks(
+  sessionId: string,
+  links: DependencyLink[]
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const response = await fetchWithTimeout(`${apiUrl}/api/nested/sessions/${sessionId}/links`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ links }),
+    })
+    return handleResponse(response)
+  } catch (error) {
+    console.error("Failed to resolve links:", error)
+    return { success: false, error: error instanceof Error ? error.message : "Failed to resolve links" }
+  }
+}
+
+export async function nestedUpdateMappings(
+  sessionId: string,
+  mappings: MappingEntry[]
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const response = await fetchWithTimeout(`${apiUrl}/api/nested/sessions/${sessionId}/mappings`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mappings }),
+    })
+    return handleResponse(response)
+  } catch (error) {
+    console.error("Failed to update mappings:", error)
+    return { success: false, error: error instanceof Error ? error.message : "Failed to update mappings" }
+  }
+}
+
+export async function nestedValidate(
+  sessionId: string
+): Promise<ValidateResponse> {
+  try {
+    const response = await fetchWithTimeout(`${apiUrl}/api/nested/sessions/${sessionId}/validate`, {
+      method: "POST",
+    })
+    return handleResponse<ValidateResponse>(response)
+  } catch (error) {
+    console.error("Failed to validate session:", error)
+    return {
+      success: false,
+      valid: false,
+      errors: [{ level: "error", code: "VALIDATION_FAILED", message: error instanceof Error ? error.message : "Validation failed" }],
+      warnings: [],
+    }
+  }
+}
+
+export async function nestedGenerate(
+  sessionId: string
+): Promise<GenerateResponse> {
+  try {
+    const response = await fetchWithTimeout(`${apiUrl}/api/nested/sessions/${sessionId}/generate`, {
+      method: "POST",
+    })
+    return handleResponse<GenerateResponse>(response)
+  } catch (error) {
+    console.error("Failed to start generation:", error)
+    return { success: false, error: error instanceof Error ? error.message : "Failed to start generation" }
+  }
+}
+
+export async function nestedGetTaskStatus(
+  taskId: string
+): Promise<TaskStatusResponse> {
+  try {
+    const response = await fetchWithTimeout(`${apiUrl}/api/nested/tasks/${taskId}`, {
+      method: "GET",
+    })
+    return handleResponse<TaskStatusResponse>(response)
+  } catch (error) {
+    console.error("Failed to get task status:", error)
+    return {
+      task_id: taskId,
+      status: "FAILED",
+      progress: 0,
+      message: error instanceof Error ? error.message : "Failed to get task status",
+      diagnostics: [],
+    }
+  }
+}
+
+export async function nestedDownloadResult(
+  taskId: string
+): Promise<{ type: "success" | "error"; message?: string }> {
+  try {
+    const response = await fetchWithTimeout(`${apiUrl}/api/nested/tasks/${taskId}/download`, {
+      method: "GET",
+    })
+
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}`
+      try {
+        const errorData = await response.json()
+        errorMessage = errorData.error || errorData.message || errorMessage
+      } catch {}
+      throw new Error(errorMessage)
+    }
+
+    const blob = await response.blob()
+    const downloadUrl = URL.createObjectURL(blob)
+    const now = new Date()
+    const timestamp = now.toISOString().replace(/[:.]/g, "-").slice(0, 19)
+    const filename = `nested_cv_merged_${timestamp}.sql`
+
+    const link = document.createElement("a")
+    link.href = downloadUrl
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(downloadUrl)
+
+    return { type: "success", message: "Downloaded successfully" }
+  } catch (error) {
+    console.error("Nested CV download failed:", error)
+    return { type: "error", message: error instanceof Error ? error.message : "Download failed" }
+  }
+}
+
+export async function nestedDeleteSession(
+  sessionId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const response = await fetchWithTimeout(`${apiUrl}/api/nested/sessions/${sessionId}`, {
+      method: "DELETE",
+    })
+    return handleResponse(response)
+  } catch (error) {
+    console.error("Failed to delete session:", error)
+    return { success: false, error: error instanceof Error ? error.message : "Failed to delete session" }
+  }
+}
+
 // --- Previous Conversions (Mapping History) ---
 
 export interface PreviousConversion {
