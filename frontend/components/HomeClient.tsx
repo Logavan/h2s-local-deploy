@@ -1,7 +1,6 @@
 "use client"
 import { useState, useRef, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import Slider from "@/components/Slider"
 import ConversionTool from "@/components/ConversionTool"
 import MappingTool from "@/components/MappingTool"
 import TabSwitcher from "@/components/TabSwitcher"
@@ -98,9 +97,6 @@ export default function HomeClient() {
     return (
         <>
             <main className="w-full overflow-x-hidden">
-                    {/* Hero Slider */}
-                    <Slider activeTab={activeTab as "converter" | "mapper"} setActiveTab={handleTabChange} />
-
                     {/* Tools Section */}
                     <div id="tools-section" className="container mx-auto px-4 py-8" style={{ scrollMarginTop: '80px' }}>
                         <TabSwitcher activeTab={activeTab as "converter" | "mapper"} onTabChange={handleTabChange} />

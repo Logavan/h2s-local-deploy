@@ -182,7 +182,7 @@ NOTE: SQL AUTO-GENERATION REFERENCE
 The SQL statements below are generated from XML and are for reference only.
 For ACCURATE and SYNTAX-CORRECT SQL/PySpark, please follow these guidelines:
 
-✔ Always use the SQL Mapping Engine:
+✔ Always use the SQL/PySpark Mapping Engine:
     🔗 https://hanacv2sql.com/?tab=mapper
 
    → It generates dynamic and syntactically correct SQL/PySpark for:
@@ -194,11 +194,11 @@ For ACCURATE and SYNTAX-CORRECT SQL/PySpark, please follow these guidelines:
      • Microsoft Fabric
 
 ✔ Download Mapping File(Excel) from Account section:
-    → This must be used with the SQL Mapping Engine to ensure correct SQL generation.
+    → This must be used with the SQL/PySpark Mapping Engine to ensure correct SQL generation.
     👤 Available at: Profile > Account > Conversions
                     or
     🔗 Direct URL: https://hanacv2sql.com/account?tab=conversions
-    🔐 The file is encrypted and can only be used by the SQL Mapping Engine.
+    🔐 The file is encrypted and can only be used by the SQL/PySpark Mapping Engine.
 ──────────────────────────────────────────────────────────────────────────────
 */"""
 

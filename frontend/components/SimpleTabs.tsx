@@ -22,7 +22,7 @@ export default function SimpleTabs({ activeTab, onTabChange }: SimpleTabsProps) 
           }`}
           data-testid="converter-tab"
         >
-          HANA CV to SQL Converter
+          HANA CV Converter
         </button>
         <button
           onClick={() => handleTabClick("mapper")}
@@ -31,7 +31,7 @@ export default function SimpleTabs({ activeTab, onTabChange }: SimpleTabsProps) 
           }`}
           data-testid="mapper-tab"
         >
-          SQL Mapping Engine
+          SQL/PySpark Mapping Engine
         </button>
       </div>
     </div>

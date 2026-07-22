@@ -8,6 +8,7 @@ import zipfile
 import logging
 import uuid
 from datetime import datetime
+from local_storage import save_result
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Any
 
@@ -16,30 +17,20 @@ logger = logging.getLogger(__name__)
 # Import existing functions to reuse
 from node_counter import count_xml_nodes
 from sql_converter import convert_xml_to_sql
-from gcs_upload import upload_to_gcs
 from werkzeug.utils import secure_filename
-from supabase import create_client
-import os
-
-# Initialize Supabase client
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY else None
 
 
-def analyze_single_file(file_content: str, file_name: str, user_email: str, daily_free_count: int = 0) -> Dict[str, Any]:
+def analyze_single_file(file_content: str, file_name: str) -> Dict[str, Any]:
     """
     Analyze a single XML/TXT file - reuses existing count_xml_nodes function
     """
     try:
-        result = count_xml_nodes(file_content, daily_free_conversions_used=daily_free_count)
+        result = count_xml_nodes(file_content)
         return {
             "success": True,
             "file_name": file_name,
             "node_count": result.get("node_count", 0),
             "complexity": result.get("complexity", "unknown"),
-            "conversion_type": result.get("conversion_type", "Unknown"),
-            "credit_cost": result.get("credit_cost", 0),
             "validated_xml": result.get("validated_xml", ""),
             "error": None
         }
@@ -49,16 +40,14 @@ def analyze_single_file(file_content: str, file_name: str, user_email: str, dail
             "success": False,
             "file_name": file_name,
             "node_count": 0,
-            "conversion_type": "Unknown",
-            "credit_cost": 0,
             "error": str(e)
         }
 
 
-def convert_single_file(file_content: str, file_name: str, user_email: str, task_id: str, conversion_type: str, credit_cost: int, node_count: int, complexity: str = "unknown", analysis_id: str = "") -> Dict[str, Any]:
+def convert_single_file(file_content: str, file_name: str, task_id: str, node_count: int, complexity: str = "unknown", analysis_id: str = "") -> Dict[str, Any]:
     """
     Convert a single XML file to SQL - reuses existing convert_xml_to_sql function
-    Each conversion stores its own record in the database (same as single file conversion)
+    Returns results in-memory instead of writing to database
     """
     import asyncio
     import time
@@ -81,39 +70,27 @@ def convert_single_file(file_content: str, file_name: str, user_email: str, task
         if not conversion_result.get("success"):
             raise Exception(conversion_result.get("error", "Conversion failed"))
 
-        # Upload to GCS
-        gcs_start = time.time()
+        # No GCS - store file bytes directly
         zip_file_content = conversion_result["zip_file_content"]
         data_mapping_content = conversion_result["Data_mapping"]
         base_filename = conversion_result["view_name"]
         cv_object_name = base_filename.replace(" ", "_").replace("-", "_")
 
-        user_email_flat = secure_filename(user_email.replace('@', '_').replace('.', '_'))
-        zip_blob_name = f"{user_email_flat}/{task_id}/{cv_object_name}.zip"
-        mapping_blob_name = f"{user_email_flat}/{task_id}/{cv_object_name}_mapping_sheet.xlsx"
-
-        sql_url = upload_to_gcs(zip_file_content, zip_blob_name)
-        data_mapping_url = upload_to_gcs(data_mapping_content, mapping_blob_name)
-        logger.info(f"[BULK] convert_single_file: GCS upload DONE in {time.time()-gcs_start:.2f}s")
-
-        # Insert conversion record into Supabase - EACH FILE GETS ITS OWN RECORD!
-        if supabase:
-            try:
-                file_task_id = str(uuid.uuid4())  # Unique ID for this file
-                data_to_insert = {
-                    "conversion_id": file_task_id,
-                    "user_mail_id": user_email,
-                    "cv_name": cv_object_name,
-                    "no_nodes": node_count,
-                    "sql_url": sql_url,
-                    "data_mapping_url": data_mapping_url,
-                    "conversion_type": conversion_type,
-                    "credits_consumed": credit_cost,
-                }
-                supabase.table("conversions").insert(data_to_insert).execute()
-                logger.info(f"[BULK] convert_single_file: Supabase insert DONE for {file_name}")
-            except Exception as db_e:
-                logger.error(f"[BULK] convert_single_file: Supabase insert ERROR for {file_name}: {str(db_e)}")
+        # Save to disk via local_storage
+        sql_url = None
+        data_mapping_url = None
+        try:
+            saved = save_result(
+                task_id,
+                zip_file_content,
+                data_mapping_content,
+                metadata={"cv_object_name": cv_object_name}
+            )
+            sql_url = saved.get("sql_url")
+            data_mapping_url = saved.get("data_mapping_url")
+            logger.info(f"[BULK] convert_single_file: Saved to disk at {sql_url}")
+        except Exception as e:
+            logger.warning(f"[BULK] convert_single_file: Failed to save to disk: {e}")
 
         logger.info(f"[BULK] convert_single_file: COMPLETE - {file_name} in {time.time()-total_start:.2f}s")
         return {
@@ -123,6 +100,8 @@ def convert_single_file(file_content: str, file_name: str, user_email: str, task
             "analysis_id": analysis_id,
             "no_nodes": node_count,
             "complexity": complexity,
+            "sql_content": zip_file_content,
+            "mapping_content": data_mapping_content,
             "sql_url": sql_url,
             "data_mapping_url": data_mapping_url,
             "download_name": f"{cv_object_name}_converted.zip",
@@ -143,11 +122,11 @@ class BulkProcessor:
     """
     Handles bulk file processing with ThreadPoolExecutor
     """
-    
+
     def __init__(self, max_workers: int = 5):
         self.max_workers = max_workers
         self.bulk_tasks = {}  # Store bulk task status
-    
+
     def extract_zip_files(self, zip_file_content: bytes) -> List[Dict[str, Any]]:
         """
         Extract files from ZIP and return list of file contents
@@ -156,23 +135,22 @@ class BulkProcessor:
         files = []
         all_files_found = []  # For debugging
         skipped_reasons = []  # For debugging
-        
+
         try:
             with zipfile.ZipFile(io.BytesIO(zip_file_content)) as zf:
                 for file_name in zf.namelist():
                     all_files_found.append(file_name)
-                    
+
                     # Skip directories
                     if file_name.endswith('/') or file_name.startswith('__'):
                         skipped_reasons.append(f"{file_name}: is directory or macos metadata")
                         continue
-                    
+
                     # Get just the filename without path
                     base_name = file_name.split('/')[-1] if '/' in file_name else file_name
                     base_name = base_name.split('\\')[-1] if '\\' in base_name else base_name
 
                     # Preserve subfolder path for disambiguation (e.g., "models_sales" from "models/sales.xml")
-                    # Replace path separators with underscores to avoid GCS key conflicts
                     path_prefix = file_name.replace('\\', '/').rsplit('/', 1)[0] if '/' in file_name else ''
                     if path_prefix:
                         disambiguated_name = f"{path_prefix.replace('/', '_')}_{base_name}"
@@ -189,7 +167,7 @@ class BulkProcessor:
                     content = None
                     raw_content = None
                     encodings_to_try = ['utf-8', 'utf-8-sig', 'utf-16', 'utf-16-le', 'utf-16-be', 'latin-1', 'cp1252', 'iso-8859-1', 'ascii', 'cp437']
-                    
+
                     for encoding in encodings_to_try:
                         try:
                             with zf.open(file_name) as f:
@@ -203,7 +181,7 @@ class BulkProcessor:
                                 break
                         except (UnicodeDecodeError, UnicodeError, LookupError):
                             continue
-                    
+
                     if content is None and raw_content is not None:
                         # Last resort: try binary detection and decode appropriately
                         try:
@@ -214,19 +192,19 @@ class BulkProcessor:
                             content = raw_content.decode('utf-8', errors='replace')
                         except Exception:
                             content = str(raw_content, errors='replace')
-                    
+
                     # Validate content is actually text (not binary garbage)
                     if raw_content is not None and self._is_likely_binary(raw_content):
                         skipped_reasons.append(f"{file_name}: detected as binary content")
                         continue
-                    
+
                     # Clean up content - remove null bytes and other control characters
                     if content:
                         # Remove null bytes which can cause XML parsing issues
                         content = content.replace('\x00', '')
                         # Normalize line endings
                         content = content.replace('\r\n', '\n').replace('\r', '\n')
-                    
+
                     # Only add if content is not empty and has reasonable content
                     if content and len(content.strip()) > 0:
                         # Additional check: ensure content looks like XML/text, not garbage
@@ -241,13 +219,13 @@ class BulkProcessor:
                             skipped_reasons.append(f"{file_name}: content doesn't appear to be valid XML/text")
                     else:
                         skipped_reasons.append(f"{file_name}: empty content")
-                        
+
             logger.info(f"ZIP extraction summary: Total files in ZIP: {len(all_files_found)}, Extracted XML/TXT: {len(files)}")
             if all_files_found and not files:
                 logger.warning(f"No XML/TXT files extracted. All files found: {all_files_found}")
                 logger.warning(f"Skipped reasons: {skipped_reasons}")
             return files
-            
+
         except zipfile.BadZipFile:
             logger.error("Invalid ZIP file: File is corrupted or not a valid ZIP archive")
             return []
@@ -263,20 +241,20 @@ class BulkProcessor:
         """
         if not content:
             return True
-        
+
         # Check for null bytes (strong indicator of binary)
         null_count = content.count(b'\x00')
         if null_count > 0:
             return True
-        
+
         # Check ratio of non-printable characters
         # Text files typically have < 10% non-printable chars (excluding common whitespace)
         size = len(content)
         non_printable = sum(1 for byte in content if byte < 32 and byte not in (9, 10, 13))  # Allow tab, newline, CR
-        
+
         if size > 0 and (non_printable / size) > threshold:
             return True
-        
+
         return False
 
     def _is_valid_text_content(self, content: str, sample_size: int = 500) -> bool:
@@ -285,267 +263,248 @@ class BulkProcessor:
         """
         if not content or len(content.strip()) == 0:
             return False
-        
+
         # Check if content starts with common text/XML markers
         content_start = content.strip()[:100].lower()
-        
+
         # Common valid start patterns
         valid_starts = [
             '<?xml', '<view:', '<columnview', '<?xml version',
             '<?xml encoding', '<?doctype', '<!doctype',
             '<repository', '<designtime', '<hana', '<calculation'
         ]
-        
+
         for pattern in valid_starts:
             if content_start.startswith(pattern):
                 return True
-        
+
         # Check for reasonable character distribution
         # Valid text/XML should have a good mix of letters and some special chars
         letter_count = sum(1 for c in content[:sample_size] if c.isalpha())
         special_count = sum(1 for c in content[:sample_size] if c in '<>=";\':/')
-        
+
         total = min(sample_size, len(content))
         if total == 0:
             return False
-        
+
         # If too few letters or special chars, might be garbage
         if letter_count / total < 0.1:
             return False
-        
+
         # Should have at least some XML-like characters
         if special_count < 2:
             return False
-        
+
         # Check for balanced angle brackets (basic XML structure check)
         open_brackets = content.count('<')
         close_brackets = content.count('>')
         if abs(open_brackets - close_brackets) > 5 and open_brackets > 5:
             # Might still be valid if most content is within tags
             pass
-        
+
         return True
-    
-    def analyze_zip(self, zip_file_content: bytes, user_email: str) -> Dict[str, Any]:
+
+    def analyze_zip(self, zip_file_content: bytes) -> Dict[str, Any]:
         """
         Analyze all files in a ZIP - extract and analyze each file
+        Returns results in-memory without database writes
         """
         # Extract files from ZIP
         extracted_files = self.extract_zip_files(zip_file_content)
-        
+
         if not extracted_files:
             return {
                 "success": False,
                 "error": "No valid XML/TXT files found in ZIP",
                 "files": []
             }
-        
-        # Get daily free conversion count
-        daily_free_count = 0
-        if supabase and user_email != 'anonymous@example.com':
-            from datetime import date
-            today = date.today().isoformat()
-            response = supabase.table("conversions") \
-                .select("conversion_id", count="exact") \
-                .eq("conversion_type", "Free") \
-                .eq("user_mail_id", user_email) \
-                .eq("conversion_date", today) \
-                .execute()
-            daily_free_count = int(response.count) if response.count else 0
-        
+
         # Analyze each file
         analyzed_files = []
         for file_data in extracted_files:
             analysis = analyze_single_file(
                 file_data["content"],
-                file_data["name"],
-                user_email,
-                daily_free_count
+                file_data["name"]
             )
-            # Track free conversions consumed in this batch
-            if analysis["conversion_type"] == "Free":
-                daily_free_count += 1
             analyzed_files.append({
                 "id": str(uuid.uuid4()),
                 "file_name": analysis["file_name"],
                 "node_count": analysis["node_count"],
                 "complexity": analysis.get("complexity", "unknown"),
-                "credit_cost": analysis["credit_cost"],
-                "conversion_type": analysis["conversion_type"],
                 "original_path": file_data.get("original_path", ""),
                 "content": analysis.get("validated_xml", ""),  # Pass through content for conversion
                 "status": "pending"
             })
-        
+
         # Calculate totals
         total_nodes = sum(f["node_count"] for f in analyzed_files)
-        total_credits = sum(f["credit_cost"] for f in analyzed_files if f["conversion_type"] == "Paid")
-        free_count = sum(1 for f in analyzed_files if f["conversion_type"] == "Free")
-        paid_count = sum(1 for f in analyzed_files if f["conversion_type"] == "Paid")
-        
+
         return {
             "success": True,
             "files": analyzed_files,
             "total_files": len(analyzed_files),
-            "total_nodes": total_nodes,
-            "total_credits": total_credits,
-            "free_count": free_count,
-            "paid_count": paid_count
+            "total_nodes": total_nodes
         }
-    
-    def convert_bulk(self, files: List[Dict[str, Any]], user_email: str, conversion_type: str, bulk_task_id: str = None) -> str:
+
+    def convert_bulk(self, files: List[Dict[str, Any]], bulk_task_id: str = None) -> str:
         """
         Convert multiple files in parallel using ThreadPoolExecutor
         Returns bulk_task_id for polling
 
-        MANAGES is_conversion_running FLAG:
-        - Sets flag to True when bulk conversion starts
-        - Resets flag to False when bulk conversion completes (success or failure)
+        MANAGES in-memory bulk_tasks dict for status tracking
         """
         # Use provided bulk_task_id or generate new one
         if bulk_task_id is None:
             bulk_task_id = str(uuid.uuid4())
-        
+
         # Initialize bulk task status
         self.bulk_tasks[bulk_task_id] = {
             "status": "PROCESSING",
             "progress": {"completed": 0, "total": len(files), "failed": 0},
             "results": [],
             "errors": [],
-            "timestamp": datetime.now().isoformat(),
-            "user_email": user_email
+            "timestamp": datetime.now().isoformat()
         }
-        
-        # --- CONCURRENCY CONTROL: Set is_conversion_running = True ---
-        conversion_in_progress = False
-        if supabase and user_email != 'anonymous@example.com':
-            try:
-                # Check current status
-                user_status_response, _ = supabase.table("users") \
-                    .select("is_conversion_running") \
-                    .eq("user_mail_id", user_email) \
-                    .single() \
-                    .execute()
-                
-                current_status = user_status_response[1].get('is_conversion_running') if user_status_response[1] else None
-                logger.info(f"Bulk: Concurrency check for user {user_email}: is_conversion_running = {current_status}")
-                
-                if user_status_response[1] and current_status:
-                    # Another conversion is already in progress (single or bulk)
-                    self.bulk_tasks[bulk_task_id]["status"] = "FAILED"
-                    self.bulk_tasks[bulk_task_id]["errors"].append({
-                        "file": "BULK_TASK",
-                        "error": "A conversion is already in progress for this user. Please wait."
-                    })
-                    logger.warning(f"Bulk: Parallel conversion detected for user: {user_email}")
-                    return bulk_task_id
-                
-                # Set flag to True
-                update_response, _ = supabase.table("users") \
-                    .update({"is_conversion_running": True}) \
-                    .eq("user_mail_id", user_email) \
-                    .execute()
-                
-                if update_response[1]:
-                    logger.info(f"Bulk: Set is_conversion_running to True for user: {user_email}")
-                    conversion_in_progress = True
-                else:
-                    logger.error(f"Bulk: Failed to set is_conversion_running to True for: {user_email}")
-            except Exception as e:
-                logger.error(f"Bulk: Concurrency check error for {user_email}: {str(e)}")
-        # --- END CONCURRENCY CONTROL ---
-        
+
         # Convert files in parallel
-        try:
-            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-                # Submit all conversion tasks
-                future_to_file = {}
-                for file_data in files:
-                    future = executor.submit(
-                        convert_single_file,
-                        file_data["content"],
-                        file_data.get("file_name", file_data.get("name", "")),
-                        user_email,
-                        bulk_task_id,
-                        file_data.get("conversion_type", conversion_type),
-                        file_data.get("credit_cost", file_data.get("credits", 0)),
-                        file_data.get("node_count", 0),
-                        file_data.get("complexity", "unknown"),
-                        file_data.get("id", "")
-                    )
-                    future_to_file[future] = file_data.get("file_name", file_data.get("name", ""))
-                
-                # Process results as they complete
-                for future in as_completed(future_to_file):
-                    file_name = future_to_file[future]
-                    try:
-                        result = future.result()
-                        
-                        if result["success"]:
-                            self.bulk_tasks[bulk_task_id]["results"].append({
-                                "file_name": file_name,
-                                "analysis_id": result.get("analysis_id", ""),
-                                "no_nodes": result.get("no_nodes", 0),
-                                "complexity": result.get("complexity", "unknown"),
-                                "status": "completed",
-                                "sql_url": result.get("sql_url"),
-                                "download_name": result.get("download_name")
-                            })
-                            self.bulk_tasks[bulk_task_id]["progress"]["completed"] += 1
-                        else:
-                            self.bulk_tasks[bulk_task_id]["errors"].append({
-                                "file": file_name,
-                                "error": result.get("error", "Unknown error")
-                            })
-                            self.bulk_tasks[bulk_task_id]["progress"]["failed"] += 1
-                            
-                    except Exception as e:
-                        logger.error(f"Error processing {file_name}: {str(e)}")
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            # Submit all conversion tasks
+            future_to_file = {}
+            for file_data in files:
+                future = executor.submit(
+                    convert_single_file,
+                    file_data["content"],
+                    file_data.get("file_name", file_data.get("name", "")),
+                    bulk_task_id,
+                    file_data.get("node_count", 0),
+                    file_data.get("complexity", "unknown"),
+                    file_data.get("id", "")
+                )
+                future_to_file[future] = file_data.get("file_name", file_data.get("name", ""))
+
+            # Process results as they complete
+            for future in as_completed(future_to_file):
+                file_name = future_to_file[future]
+                try:
+                    result = future.result()
+
+                    if result["success"]:
+                        self.bulk_tasks[bulk_task_id]["results"].append({
+                            "file_name": file_name,
+                            "analysis_id": result.get("analysis_id", ""),
+                            "no_nodes": result.get("no_nodes", 0),
+                            "complexity": result.get("complexity", "unknown"),
+                            "status": "completed",
+                            "sql_url": result.get("sql_url"),
+                            "download_name": result.get("download_name")
+                        })
+                        self.bulk_tasks[bulk_task_id]["progress"]["completed"] += 1
+                    else:
                         self.bulk_tasks[bulk_task_id]["errors"].append({
                             "file": file_name,
-                            "error": str(e)
+                            "error": result.get("error", "Unknown error")
                         })
                         self.bulk_tasks[bulk_task_id]["progress"]["failed"] += 1
-        finally:
-            # --- CONCURRENCY CONTROL: Reset is_conversion_running = False ---
-            if conversion_in_progress and supabase and user_email != 'anonymous@example.com':
-                try:
-                    supabase.table("users") \
-                        .update({"is_conversion_running": False}) \
-                        .eq("user_mail_id", user_email) \
-                        .execute()
-                    logger.info(f"Bulk: Reset is_conversion_running to False for user: {user_email}")
+
                 except Exception as e:
-                    logger.error(f"Bulk: Failed to reset is_conversion_running for {user_email}: {str(e)}")
-            # --- END CONCURRENCY CONTROL ---
-        
+                    logger.error(f"Error processing {file_name}: {str(e)}")
+                    self.bulk_tasks[bulk_task_id]["errors"].append({
+                        "file": file_name,
+                        "error": str(e)
+                    })
+                    self.bulk_tasks[bulk_task_id]["progress"]["failed"] += 1
+
         # Update final status
         total = len(files)
         completed = self.bulk_tasks[bulk_task_id]["progress"]["completed"]
         failed = self.bulk_tasks[bulk_task_id]["progress"]["failed"]
-        
+
         if failed == total:
             self.bulk_tasks[bulk_task_id]["status"] = "FAILED"
         elif completed == total:
             self.bulk_tasks[bulk_task_id]["status"] = "COMPLETED"
         else:
             self.bulk_tasks[bulk_task_id]["status"] = "PARTIAL"
-        
+
         return bulk_task_id
-    
+
     def get_bulk_status(self, bulk_task_id: str) -> Dict[str, Any]:
         """
         Get status of bulk conversion task
         """
         if bulk_task_id not in self.bulk_tasks:
             return {"error": "Task not found", "status": "UNKNOWN"}
-        
+
         task = self.bulk_tasks[bulk_task_id]
         return {
             "status": task["status"],
             "progress": task["progress"],
             "results": task["results"],
             "errors": task["errors"]
+        }
+
+    def process_bulk_zip(self, zip_file_content: bytes) -> Dict[str, Any]:
+        """
+        Process a bulk ZIP file: analyze and convert all files
+        Returns results directly instead of writing to database
+
+        Returns:
+            Dict with:
+                - success: bool
+                - status: "COMPLETED" | "PARTIAL" | "FAILED"
+                - total_files: int
+                - completed: int
+                - failed: int
+                - results: list of file results
+                - errors: list of errors
+        """
+        # First analyze the ZIP
+        analysis = self.analyze_zip(zip_file_content)
+
+        if not analysis["success"]:
+            return {
+                "success": False,
+                "status": "FAILED",
+                "error": analysis["error"],
+                "total_files": 0,
+                "completed": 0,
+                "failed": 0,
+                "results": [],
+                "errors": [{"file": "ZIP", "error": analysis["error"]}]
+            }
+
+        # Extract files to convert
+        files_to_convert = analysis["files"]
+
+        if not files_to_convert:
+            return {
+                "success": False,
+                "status": "FAILED",
+                "error": "No valid files to convert",
+                "total_files": 0,
+                "completed": 0,
+                "failed": 0,
+                "results": [],
+                "errors": [{"file": "ZIP", "error": "No valid files to convert"}]
+            }
+
+        # Start bulk conversion
+        bulk_task_id = self.convert_bulk(files_to_convert)
+
+        # Wait for completion by getting status
+        # In a real async scenario, this would be polled
+        # For now, we return immediately and let caller poll
+        status = self.get_bulk_status(bulk_task_id)
+
+        return {
+            "success": status["status"] in ("COMPLETED", "PARTIAL"),
+            "status": status["status"],
+            "bulk_task_id": bulk_task_id,
+            "total_files": len(files_to_convert),
+            "completed": status["progress"]["completed"],
+            "failed": status["progress"]["failed"],
+            "results": status["results"],
+            "errors": status["errors"]
         }
 
 

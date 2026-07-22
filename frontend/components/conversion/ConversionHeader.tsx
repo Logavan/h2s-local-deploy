@@ -9,7 +9,6 @@ type ConversionMode = "single" | "bulk"
 
 interface ConversionHeaderProps {
   isLoggedIn: boolean
-  credits: number
   conversionMode: ConversionMode
   isProcessing: boolean
   processingState: ProcessingState
@@ -19,7 +18,6 @@ interface ConversionHeaderProps {
 
 export function ConversionHeader({
   isLoggedIn,
-  credits,
   conversionMode,
   isProcessing,
   processingState,
@@ -30,7 +28,7 @@ export function ConversionHeader({
     <>
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-4 mb-4 sm:mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary">HANA CV to SQL Converter</h1>
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary">HANA CV Converter</h1>
           <Link
             href="/how-to-use#hana-cv-to-sql-converter"
             className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-primary bg-secondary/10 rounded-full hover:bg-secondary/20 transition-colors self-start sm:self-auto"
@@ -66,20 +64,6 @@ export function ConversionHeader({
           )}
         </div>
       </div>
-
-      {isLoggedIn && (
-        <div className="mb-4 p-3 bg-gray-50 rounded-md">
-          <div className="flex justify-between items-center">
-            <div>
-              <span className="text-sm text-gray-500">Available Credits:</span>
-              <span className="ml-2 font-medium">{credits}</span>
-            </div>
-            <Link href="/pricing" className="text-sm text-primary hover:text-primary/80 transition-colors">
-              Purchase Credits
-            </Link>
-          </div>
-        </div>
-      )}
 
       {/* Conversion Mode Toggle */}
       <div className="mb-6">

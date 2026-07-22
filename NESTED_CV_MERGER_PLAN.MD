@@ -2,12 +2,26 @@
 
 ## 1. Objective
 
-SAP HANA Calculation Views (CVs) may reference other CVs, forming a dependency graph. The Nested CV Merger will accept mapping workbooks from separately converted CVs, resolve their relationships, apply one consistent target mapping, and produce one target-dialect SQL file.
+> **Scope Clarification:** This is a **completely standalone Nested CV Flattener tool**. It is NOT integrated into the existing Mapping Tool UI/frontend. The existing Conversion Tool and Mapping Tool remain completely untouched.
 
-The user-facing rule is:
+**Entry Point:**
+1. User is working in the **Mapping Tool** (after conversion, single or bulk).
+2. User clicks on a **source table/view** within the Mapping Tool.
+3. A prompt appears: "Paste your nested CV mapping file."
+4. User pastes the converted mapping workbook content.
+5. A **separate standalone visual mapping window** opens for that nested CV.
+6. System auto-maps columns by default; user can verify and override any mapping.
+7. Bottom-up resolution: child CVs resolved first, then parents.
+8. Output: consolidated flattened `.sql` or `.pyspark`.
 
+**Key Principles:**
+- **NEVER touch** the existing Conversion Tool UI/frontend.
+- **NEVER touch** the existing Mapping Tool UI/frontend.
+- **Standalone UI**: Nested CV Flattener is its own complex, isolated interface.
 - **Inline / Merge enabled**: the CV is not emitted as a standalone view; it is inlined into each consumer as a CTE.
 - **Inline / Merge disabled**: the CV is emitted as its own `CREATE VIEW` statement, and consumers reference that emitted view.
+- **Bottom-up composition**: Leaves (source CVs) are resolved first, then parents that depend on them.
+- **Auto-mapping by default**: System maps columns automatically based on lineage; user verifies in visual window.
 
 The implementation must not rely on upload order or filename equality to determine dependencies.
 
@@ -15,17 +29,18 @@ The implementation must not rely on upload order or filename equality to determi
 
 ## 2. Scope and Output Contract
 
-### In scope
+### In scope — Mapping Tool Consolidation Phase
 
-1. Upload multiple encrypted mapping XLSX artifacts produced by this application.
-2. Parse and validate each artifact.
-3. Identify or explicitly resolve physical-table, external-CV, and uploaded-CV references.
-4. Build and validate a directed dependency graph.
+1. Upload multiple encrypted mapping XLSX artifacts **from the Mapping Tool** (already converted, already mapped).
+2. Parse and validate each artifact to extract dependency metadata.
+3. Identify or explicitly resolve physical-table, external-CV, and uploaded-CV references from the workbook metadata.
+4. Build and validate a directed dependency graph (bottom-up resolution).
 5. Present one deduplicated mapping editor for physical sources and unresolved external CVs.
-6. Generate target-dialect query bodies for each CV.
-7. Inline selected CVs as statement-local CTEs.
+6. Generate consolidated target-dialect query bodies for each CV.
+7. Inline selected CVs as statement-local CTEs (bottom-up composition).
 8. Emit non-inlined CVs as views in dependency order.
-9. Download one merged `.sql` file.
+9. Download one merged `.sql` file OR one consolidated `.pyspark` file (two output modes).
+10. **Reuses existing mapping Python scripts** — does not re-invoke conversion logic.
 
 ### Initially out of scope
 
@@ -34,20 +49,24 @@ The implementation must not rely on upload order or filename equality to determi
 - Recursive/cyclic Calculation Views.
 - Renaming an inlined CV's output contract independently of all its consumers.
 - Sharing one CTE between separate `CREATE VIEW` statements; SQL CTE scope does not allow this.
+- Re-parsing original XML — all lineage comes from the mapping workbook metadata.
 
 ### Output semantics
 
-The result is one `.sql` file that may contain multiple `CREATE VIEW` statements. Every statement has its own local `WITH` clause.
+The result is one `.sql` or `.pyspark` file that may contain multiple `CREATE VIEW` / `CREATE TABLE` statements. Every statement has its own local `WITH` clause (SQL) or `with` block (PySpark).
 
-- Statements are emitted in topological order.
+- Statements are emitted in topological order (bottom-up: children first, then parents).
 - An inlined child used by multiple emitted roots is repeated in each applicable statement.
 - A CV configured as `emit_view` is emitted once and referenced by its target view name.
 - A CV configured as `inline_cte` is not emitted separately.
 - A graph root with no consumer cannot be `inline_cte`; validation must require or automatically set it to `emit_view`.
+- **PySpark output**: Uses `DataFrame` API with explicit column selection, not raw SQL.
 
 ---
 
 ## 3. Blocking Artifact-Format Requirement
+
+> **Context:** These workbooks are outputs from the Mapping Tool (already converted), not raw XML inputs. The merger reads metadata from these workbooks to build the dependency graph without re-parsing original source files.
 
 The current mapping workbook has only `sql info` and `mapping info`. Those sheets do not reliably identify:
 
@@ -59,9 +78,9 @@ The current mapping workbook has only `sql info` and `mapping info`. Those sheet
 
 A flat list of table strings and a filename are therefore insufficient for safe automatic merging.
 
-### 3.1 Version 2 workbook format
+### 3.1 Version 2 workbook format (for Mapping Tool export)
 
-Update conversion export so new workbooks retain the existing sheets and add the following metadata sheets.
+Update Mapping Tool export so new workbooks retain the existing sheets and add the following metadata sheets. These sheets are what the merger reads to resolve lineage — no re-parsing of original XML required.
 
 #### `artifact manifest`
 
@@ -312,9 +331,36 @@ Centralize:
 - `CREATE OR REPLACE VIEW` / `CREATE OR ALTER VIEW` syntax;
 - reserved words;
 - statement terminators;
-- AST read/write dialect names.
+- AST read/write dialect names;
+- PySpark DataFrame output generation.
 
-Supported values must match the current mapping engine, for example BigQuery, Fabric/Azure Synapse, Snowflake, Redshift, Databricks, and SAP Datasphere. Unsupported combinations fail during validation rather than silently falling back.
+Supported SQL dialects: BigQuery, Fabric/Azure Synapse, Snowflake, Redshift, Databricks, SAP Datasphere.
+Supported PySpark dialects: Databricks PySpark, EMR PySpark, local Spark.
+
+Unsupported combinations fail during validation rather than silently falling back.
+
+### 7.5 PySpark output mode
+
+Instead of SQL `CREATE VIEW` statements, PySpark output uses the DataFrame API:
+
+```python
+# Generated structure (conceptual)
+from pyspark.sql import SparkSession
+from pyspark.sql import functions as F
+
+spark = SparkSession.builder.getOrCreate()
+
+# Each emitted CV becomes a named DataFrame
+df_child_cv = spark.table("source_schema.source_table") \
+    .select("col_a", "col_b")
+
+df_parent_cv = df_child_cv.select("col_a", F.col("col_b").alias("renamed_col"))
+```
+
+- Bottom-up composition: child DataFrames defined first, parents reference them
+- Column-level lineage: explicit `.select()` for every output column
+- No raw SQL strings — all DataFrame operations
+- Target schema names from consolidated mapping
 
 ### 7.5 Final verification
 
@@ -388,109 +434,144 @@ Required controls:
 
 ## 10. Frontend Design
 
-### 10.1 Phases
+> **Key UX Decision:** The Nested CV Merger is a **completely standalone tool/section** — separate from both the Conversion Tool and Mapping Tool. It has its own complex UI that is never integrated into the existing tool frontends. This isolation ensures the existing tools remain untouched while the nested CV flattener evolves independently.
+
+### 10.1 Entry Point
+
+From the Mapping Tool, user clicks on a source table/view. A prompt appears:
+
+```
+┌────────────────────────────────────────────────────────────┐
+│  Paste Nested CV Mapping                                    │
+│  ─────────────────────────────────────────────────────────  │
+│  [Paste your converted mapping file content here...]        │
+│                                                             │
+│                                    [Cancel]  [Open Mapper]   │
+└────────────────────────────────────────────────────────────┘
+```
+
+Clicking **Open Mapper** opens the **Nested CV Flattener** as a standalone interface.
+
+### 10.2 Top-Level Navigation
+
+```
+┌─────────────────────────────────────────────────────┐
+│  [Converter]  |  [Mapper]  |  [Nested CV Flattener] │
+└─────────────────────────────────────────────────────┘
+```
+
+The third tab is the **Nested CV Flattener** — fully standalone with its own UX, components, and state management.
+
+### 10.3 Phases
 
 ```typescript
 type NestedPhase =
-  | "intro"
-  | "uploading"
-  | "resolving-dependencies"
-  | "mapping"
-  | "validating"
-  | "generating"
-  | "done"
-  | "error"
+  | "intro"              // Select output format (SQL / PySpark), start session
+  | "uploading"         // Paste mapping workbook content per CV
+  | "resolving"         // Visual mapping window — verify/override auto-mapped columns
+  | "mapping"           // Edit consolidated mappings (physical sources, external CVs)
+  | "validating"        // Validate graph, mappings, and output contracts
+  | "generating"        // Async generation, poll task status
+  | "done"              // Ready for download
+  | "error"             // Blocking errors with resolution guidance
 ```
 
-Server session state is authoritative. The frontend stores the session ID, capability/auth context, revision, and presentation state; it does not become the only source of dependency or mapping truth.
-
-### 10.2 Components
+### 10.4 Components (Standalone)
 
 ```text
-NestedCVTool.tsx
-├── NestedIntro.tsx
-├── CvUploadList.tsx
-│   └── CvUploadCard.tsx
-├── DependencyGraphSummary.tsx
-├── DependencyResolver.tsx
-├── AggregatedSourceList.tsx
-├── FinalMappingEditor.tsx
-├── ValidationSummary.tsx
-└── GenerationProgress.tsx
+nested-cv/
+├── NestedCVTool.tsx         # Main standalone container
+├── NestedIntro.tsx          # Welcome, output format selection (SQL / PySpark)
+├── CvUploadList.tsx        # List of pasted mapping files per CV
+│   └── CvUploadCard.tsx     # Per-CV: name, version, dependency count, warnings
+├── VisualMappingWindow.tsx  # Modal/panel for auto-mapping verification
+│   ├── AutoMappingGrid.tsx   # Shows auto-mapped columns with override option
+│   └── ColumnMapper.tsx      # Interactive column-level mapping override
+├── DependencyGraph.tsx      # Visual dependency graph (bottom-up display)
+├── DependencyResolver.tsx   # Inline vs Emit-as-view controls per CV
+├── AggregatedSourceList.tsx # Unified physical-source + external-CV mapping
+├── FinalMappingEditor.tsx   # Consolidated target name editor
+├── ValidationSummary.tsx    # Blocking errors + acknowledged warnings
+└── GenerationProgress.tsx    # Polling UI with cancel option
 ```
 
-Reuse or extract the existing mapping-grid behavior for bulk paste, validation, and target-table propagation rather than maintaining two unrelated editors.
+All components are isolated from the Conversion Tool and Mapping Tool. No shared state, no shared UI components.
 
-### 10.3 UI flow
+### 10.5 UI flow (Standalone)
 
-1. Open the **Nested CV Merger** tab.
-2. Select target platform and click **Start**.
-3. Upload one or more mapping workbooks.
-4. Show each CV, format version, dependencies, output schema, warnings, and emission mode.
-5. Resolve all legacy/ambiguous dependency references.
-6. Show graph roots and topological order.
-7. Choose **Inline into consumers (CTE)** or **Emit as view** per CV.
-8. Continue to the unified mapping editor.
-9. Resolve mapping conflicts and edit target names.
-10. Validate; display blocking errors and acknowledged warnings.
-11. Start asynchronous generation and poll task status.
-12. Download `nested_cv_merged_<timestamp>.sql`.
+1. User navigates to the **Nested CV Flattener** tab.
+2. Select output format: **SQL** or **PySpark**.
+3. Paste mapping workbook content for the first CV (leaf node).
+4. **Visual Mapping Window** opens automatically:
+   - Shows auto-mapped columns (system-determined lineage)
+   - User can verify and override any column mapping
+5. Repeat for each CV in dependency order (bottom-up).
+6. System resolves dependency graph automatically (exact canonical ID match).
+7. Ambiguous or legacy references shown for manual resolution.
+8. Graph summary shows roots, topological order, and any cycles.
+9. Continue to consolidated mapping editor:
+   - Physical sources deduplicated across all workbooks
+   - External CVs mappable to target names
+   - Conflicting mappings shown as explicit conflicts to resolve
+10. Validate: display blocking errors and acknowledged warnings.
+11. Start async generation (SQL or PySpark).
+12. Poll task status; on completion, download `merged_cv_<timestamp>.sql` or `.pyspark`.
+13. User can **Discard** (explicitly delete session) or **Start Over**.
 
-On reset/unmount, cancel polling. Explicitly delete the session when the user chooses **Discard**; do not destroy a valid session merely because a component rerenders.
+On reset/unmount, cancel polling. Explicitly delete the session when the user chooses **Discard**.
 
-### 10.4 Tab integration
+### 10.6 Constraints
 
-Update all places that currently assume only `converter | mapper`:
-
-- `HomeClient.tsx` active-tab state and render branch;
-- URL query parsing (`?tab=nested`);
-- the actual tab-switcher component imported by the current branch;
-- slider/hero props and calls that use a two-value union;
-- responsive styling and analytics events.
-
-The current checkout should be built before feature work because `HomeClient.tsx` imports several components not visible in this repository snapshot. Resolve that baseline mismatch first so Nested CV changes are tested against a compiling frontend.
+- **NEVER modify** `ConversionTool.tsx` or any conversion-related frontend files.
+- **NEVER modify** `MappingTool.tsx` or any mapping-related frontend files.
+- The Nested CV Flattener tab exists independently with its own route/state.
+- Visual Mapping Window is a **required step** — user must verify auto-mapped columns before proceeding.
 
 ---
 
 ## 11. Files to Add or Modify
 
+### Critical Constraint
+> **NEVER touch** `frontend/components/ConversionTool.tsx`, `frontend/components/MappingTool.tsx`, or any related conversion/mapping frontend files. The Nested CV Flattener is completely standalone.
+
 ### Backend
 
 | File | Change |
 |---|---|
-| `backend/flask_app.py` | Thin route registration only; no SQL merge logic |
-| `backend/sql_converter.py` | Export version 2 manifest, dependencies, and output schema sheets |
-| `backend/file_processor.py` or new metadata extractor | Deterministically extract CV identity/source kinds from XML |
-| `backend/nested_cv/models.py` | Typed session, artifact, mapping, graph, and diagnostic models |
-| `backend/nested_cv/artifact_parser.py` | Decrypt and parse v1/v2 workbooks with strict validation |
-| `backend/nested_cv/session_store.py` | Store abstraction, locking, ownership, revision, and TTL |
-| `backend/nested_cv/dependency_graph.py` | Linking, topological sort, roots, cycles, and contract validation |
-| `backend/nested_cv/mapping_service.py` | Deduplication, lineage, conflict detection, and validation |
-| `backend/nested_cv/sql_composer.py` | Namespacing, AST rewriting, CTE composition, and wrappers |
-| `backend/nested_cv/tasks.py` | Async generation task lifecycle and result storage |
+| `backend/flask_app.py` | Add nested session/task routes (thin registration) |
 | `backend/mapping_sql_generator.py` | Extract reusable pure-query generation path |
+| `backend/nested_cv/models.py` | Typed session, artifact, mapping, graph, and diagnostic models |
+| `backend/nested_cv/artifact_parser.py` | Decrypt and parse v1/v2 mapping workbooks with strict validation |
+| `backend/nested_cv/session_store.py` | Store abstraction, locking, revision, and TTL |
+| `backend/nested_cv/dependency_graph.py` | Linking, topological sort (bottom-up), roots, cycles, contract validation |
+| `backend/nested_cv/mapping_service.py` | Deduplication, lineage, conflict detection, and validation |
+| `backend/nested_cv/sql_composer.py` | Namespacing, AST rewriting, CTE composition, SQL dialect adapters |
+| `backend/nested_cv/pyspark_composer.py` | PySpark DataFrame composition (separate from SQL path) |
+| `backend/nested_cv/tasks.py` | Async generation task lifecycle and result storage |
 
-### Frontend
+### Frontend (Standalone — isolated from existing tools)
 
 | File | Change |
 |---|---|
-| `frontend/lib/api.ts` | Add typed functions for all nested-session and task endpoints |
+| `frontend/app/nested-cv/page.tsx` | Standalone page for Nested CV Flattener (own route) |
+| `frontend/components/nested-cv/*` | All new standalone components (see Section 10.4) |
+| `frontend/lib/api.ts` | Add typed functions for nested-session and task endpoints |
 | `frontend/lib/nested-cv-types.ts` | Shared API/view-model types |
-| `frontend/components/HomeClient.tsx` | Add third render branch and URL handling |
-| actual tab-switcher and slider files | Add `nested` tab support and update unions |
-| `frontend/components/nested/*` | Add workflow components listed above |
-| existing mapping editor modules | Extract reusable grid/validation behavior where practical |
+| `frontend/components/HomeClient.tsx` | Add third tab: `converter | mapper | nested` |
+
+> **Tab structure:** Top-level tab becomes `converter | mapper | nested`. The nested tab is completely standalone with its own page route and state. Existing converter and mapper tabs remain untouched.
 
 ### Tests
 
 | Path | Coverage |
 |---|---|
 | `backend/tests/nested_cv/test_artifact_parser.py` | v1/v2 parsing and workbook validation |
-| `backend/tests/nested_cv/test_dependency_graph.py` | graph/linking/topological behavior |
+| `backend/tests/nested_cv/test_dependency_graph.py` | graph/linking/topological (bottom-up) behavior |
 | `backend/tests/nested_cv/test_mapping_service.py` | deduplication and conflicts |
-| `backend/tests/nested_cv/test_sql_composer.py` | CTE/view composition and dialect rendering |
+| `backend/tests/nested_cv/test_sql_composer.py` | CTE/view composition and SQL dialect rendering |
+| `backend/tests/nested_cv/test_pyspark_composer.py` | PySpark DataFrame composition |
 | `backend/tests/nested_cv/test_api.py` | lifecycle, ownership, revision, and async tasks |
-| frontend test files | phase transitions, resolver, mappings, polling, reset, and download |
+| `frontend/test/nested-cv/*` | phase transitions, visual mapping, resolver, polling, download |
 
 ---
 
@@ -500,61 +581,67 @@ The current checkout should be built before feature work because `HomeClient.tsx
 
 1. Confirm the current backend and frontend build/test commands pass.
 2. Resolve missing frontend imports in the current checkout.
-3. Collect sanitized fixtures for:
+3. **Understand the existing Mapping Tool**:
+   - How does `MappingTool.tsx` render single-workbook mode?
+   - How does the existing mapping editor work (grid, validation, target-table propagation)?
+   - What API calls does the mapping tool make?
+   - What Python scripts does it invoke for SQL generation?
+4. Collect sanitized fixtures for:
    - a two-CV chain;
    - a three-level chain;
    - a diamond dependency;
    - multiple independent roots;
    - duplicate internal node names;
    - a legacy workbook.
-4. Record expected SQL for at least two target dialects.
+5. Record expected SQL for at least two target dialects.
 
-### Phase 1 — Artifact metadata
+### Phase 1 — Artifact metadata (Mapping Tool export update)
 
-1. Implement deterministic metadata extraction during XML conversion.
-2. Export version 2 workbook sheets.
-3. Implement strict v1/v2 parser and diagnostics.
+1. Update Mapping Tool export to include version 2 workbook sheets (artifact manifest, dependencies, output schema).
+2. Implement deterministic metadata extraction during mapping workbook export (not re-parsing original XML).
+3. Implement strict v1/v2 parser and diagnostics in the merger parser.
 4. Add parser and round-trip tests.
 
-### Phase 2 — Domain services
+### Phase 2 — Domain services (backend)
 
-1. Add typed models and session store.
+1. Add typed models and session store (`nested_cv/models.py`, `nested_cv/session_store.py`).
 2. Implement canonical identity handling and explicit links.
-3. Implement graph construction, topological sort, roots, and cycle detection.
+3. Implement graph construction, bottom-up topological sort, roots, and cycle detection.
 4. Implement unified mapping aggregation, lineage, and conflict handling.
 5. Add unit tests before routes/UI.
 
-### Phase 3 — Pure query generation and SQL composition
+### Phase 3 — Pure query generation and composition (backend)
 
-1. Refactor existing mapping generation to return a pure query body.
+1. Refactor existing mapping generation to return a pure query body (reusable path).
 2. Add deterministic CTE namespacing and reference rewriting.
 3. Implement `inline_cte` and `emit_view` composition semantics.
-4. Add dialect adapters and generated-SQL validation.
-5. Add golden-file tests for all graph shapes and supported dialects.
+4. Add SQL dialect adapters and generated-SQL validation.
+5. Add PySpark DataFrame composer.
+6. Add golden-file tests for all graph shapes, both output modes (SQL + PySpark), and all supported dialects.
 
-### Phase 4 — API and asynchronous tasks
+### Phase 4 — API and asynchronous tasks (backend)
 
 1. Add nested session routes and ownership/revision checks.
 2. Add async task/status/download behavior.
 3. Add TTL, cleanup, cancellation, and idempotency.
 4. Add API lifecycle, malformed-input, auth, and concurrency tests.
 
-### Phase 5 — Frontend
+### Phase 5 — Frontend (Mapping Tool mode integration)
 
-1. Add typed API functions and models.
-2. Integrate the third tab and URL state.
-3. Implement upload list and dependency resolver.
-4. Implement graph summary, emission controls, and mapping editor.
-5. Implement validation diagnostics, generation polling, download, and discard/reset.
+1. Add typed API functions and models (`lib/api.ts`, `lib/nested-cv-types.ts`).
+2. Update `MappingTool.tsx` with mode toggle: `single` vs `nested`.
+3. Implement Nested CV Flattener components: upload list, dependency graph, resolver, consolidated mapping editor.
+4. Implement validation diagnostics, generation polling, download, and discard/reset.
+5. Ensure smooth UX transition: Convert → Map → (Optional: Merge Multiple Mappings).
 6. Add component/integration tests and accessibility checks.
 
 ### Phase 6 — End-to-end verification
 
 1. Run all backend and frontend tests.
 2. Run each fixture through the complete UI flow.
-3. Parse generated SQL in the selected dialect.
+3. Parse generated SQL/PySpark in the selected dialect.
 4. Execute against disposable target environments where available.
-5. Verify session expiry, multi-user isolation, retry/idempotency, and worker restart behavior.
+5. Verify session expiry, retry/idempotency, and worker restart behavior.
 6. Document limits, legacy behavior, diagnostics, and recovery steps.
 
 ---
@@ -629,14 +716,20 @@ At minimum, test:
 
 The feature is complete only when:
 
-1. New conversion workbooks contain versioned identity, dependency, and output metadata.
-2. Legacy workbooks cannot be generated until every ambiguous reference is resolved.
-3. Upload order does not affect generated SQL.
-4. Cycles, missing dependencies, contract mismatches, and mapping conflicts are clearly reported before generation.
-5. Internal CTE names cannot collide across uploaded CVs.
-6. Every inline/non-inline choice follows the documented statement-scope semantics.
-7. Every emitted view uses the selected target dialect and a real validated view name.
-8. The generated file passes deterministic structural validation.
-9. Sessions/tasks are owner-scoped, revision-safe, bounded, and cleaned up.
-10. The full chain, diamond, multi-root, legacy, conflict, and security test suites pass.
-11. The browser downloads one merged `.sql` file with no placeholder identifiers.
+1. **Standalone tool**: The Nested CV Flattener is a completely standalone UI/tab, separate from Conversion Tool and Mapping Tool.
+2. **No-touch constraint**: Existing Conversion Tool and Mapping Tool frontend files are never modified.
+3. **Visual mapping window**: Dedicated window for auto-mapping verification and manual override during nested resolution.
+4. **Two output modes**: User can generate consolidated `.sql` OR `.pyspark` file.
+5. **Bottom-up composition**: Dependency graph is resolved bottom-up; leaves first, then parents.
+6. **Reuses mapping scripts**: The merger invokes the mapping tool's SQL generator, not the XML converter.
+7. New mapping workbooks contain versioned identity, dependency, and output metadata.
+8. Legacy workbooks cannot be merged until every ambiguous reference is resolved.
+9. Upload/paste order does not affect generated output.
+10. Cycles, missing dependencies, contract mismatches, and mapping conflicts are clearly reported before generation.
+11. Internal CTE/DataFrame names cannot collide across uploaded CVs.
+12. Every inline/non-inline choice follows the documented statement-scope semantics.
+13. Every emitted view uses the selected target dialect and a real validated view name.
+14. The generated file passes deterministic structural validation.
+15. Sessions/tasks are revision-safe, bounded, and cleaned up.
+16. The full chain, diamond, multi-root, legacy, conflict test suites pass.
+17. The browser downloads one merged `.sql` or `.pyspark` file with no placeholder identifiers.

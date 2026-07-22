@@ -8,8 +8,6 @@ interface BulkFileInfo {
   name: string
   content?: string
   nodes: number
-  credits: number
-  conversionType: "Free" | "Paid"
   status: "pending" | "analyzing" | "processing" | "completed" | "failed"
   error?: string
 }

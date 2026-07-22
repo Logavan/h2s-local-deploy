@@ -6,8 +6,6 @@ interface AnalysisResult {
   success: boolean
   node_count?: number
   complexity?: string
-  conversion_type?: string
-  credit_cost?: number
   session_id?: string
   line_count?: number
   error?: string
@@ -16,14 +14,10 @@ interface AnalysisResult {
 
 interface AnalysisResultsProps {
   analysisResult: AnalysisResult | null
-  forcePaidConversion: boolean
-  getCreditsRequiredForNodeCount: (nodeCount: number) => number
 }
 
 export function AnalysisResults({
   analysisResult,
-  forcePaidConversion,
-  getCreditsRequiredForNodeCount
 }: AnalysisResultsProps) {
   return (
     <AnimatePresence>
@@ -45,13 +39,6 @@ export function AnalysisResults({
                 <strong>Lines:</strong> {analysisResult.line_count}
               </p>
             )}
-            <p>
-              <strong>Conversion Type:</strong>{" "}
-              {forcePaidConversion ? "Paid (User Choice)" : analysisResult.conversion_type}
-              {(forcePaidConversion || analysisResult.conversion_type === "Paid") && (
-                <span className="ml-1 font-medium">({getCreditsRequiredForNodeCount(analysisResult.node_count || 0)} credits required)</span>
-              )}
-            </p>
           </div>
         </motion.div>
       )}

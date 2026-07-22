@@ -5,7 +5,7 @@ import "../styles/globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { AuthProvider } from "@/contexts/AuthContext"
 import Header from "@/components/Header"
-import Footer from "@/components/Footer"
+
 import ScrollProgress from "@/components/ScrollProgress"
 import { ToastProvider } from "@/components/ui/toast-provider"
 import Script from "next/script"
@@ -33,7 +33,7 @@ const spaceMono = Space_Mono({
 
 export const metadata: Metadata = {
   title: "HANACV2SQL | AI-Powered HANA Calculation View to SQL Conversion",
-  description: "Convert SAP HANA Calculation Views to optimized SQL for BigQuery, Snowflake, Redshift, Databricks, and Microsoft Fabric. Free daily conversions available.",
+  description: "Convert SAP HANA Calculation Views to optimized SQL for BigQuery, Snowflake, Redshift, Databricks, and Microsoft Fabric.",
   icons: {
     icon: [{ url: "/favicon.ico" }],
     shortcut: "/favicon.ico",
@@ -183,7 +183,6 @@ export default function RootLayout({
               <div className="flex flex-col min-h-screen w-full overflow-x-hidden" style={{ position: "relative" }}>
                 <Header />
                 <main className="flex-grow w-full overflow-x-hidden relative" style={{ isolation: "isolate" }}>{children}</main>
-                <Footer />
               </div>
               <ClientFloatingSupportButton />
             </ToastProvider>

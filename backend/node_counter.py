@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 class NodeCounter:
     """Class to handle XML validation and node counting using external logic"""
 
-    def count_nodes(self, xml_content: str, daily_free_conversions_used: int) -> Dict[str, Any]:
+    def count_nodes(self, xml_content: str) -> Dict[str, Any]:
         """
         Count nodes using custom node counter
         and validate using external validator
@@ -50,44 +50,12 @@ class NodeCounter:
                     "node_count": 0
                 }
 
-            # Step 4: Complexity & Cost
-            credit_cost = 0
-            conversion_type = "Free"
-            complexity = "unknown"
-            FREE_CONVERSION_LIMIT_PER_DAY = 5
-
-            if 1 <= node_count <= 10:
-                # Check if user still has free conversions available
-                if daily_free_conversions_used < FREE_CONVERSION_LIMIT_PER_DAY:
-                    credit_cost = 0
-                    conversion_type = "Free"
-                else:
-                    # Daily free limit exhausted - make it Paid
-                    credit_cost = 10
-                    conversion_type = "Paid"
-                complexity = "low"
-            elif 10 < node_count <= 20:
-                credit_cost = 10
-                conversion_type = "Paid"
-                complexity = "medium"
-            elif 20 < node_count <= 40:
-                credit_cost = 20
-                conversion_type = "Paid"
-                complexity = "high"
-            elif node_count > 40:
-                credit_cost = 30
-                conversion_type = "Paid"
-                complexity = "very_high"
-
-            logger.info(f"Node count: {node_count}, Type: {conversion_type}, Cost: {credit_cost} credits, Daily Free Used: {daily_free_conversions_used}")
+            logger.info(f"Node count: {node_count}")
 
             return {
                 "success": True,
                 "node_count": node_count,
-                "conversion_type": conversion_type,
-                "credit_cost": credit_cost,
-                "validated_xml": xml_content,
-                "complexity": complexity
+                "validated_xml": xml_content
             }
 
         except Exception as e:
@@ -98,9 +66,9 @@ class NodeCounter:
                 "node_count": 0
             }
 
-def count_xml_nodes(xml_content: str, daily_free_conversions_used: int = 0) -> Dict[str, Any]:
+def count_xml_nodes(xml_content: str) -> Dict[str, Any]:
     counter = NodeCounter()
-    return counter.count_nodes(xml_content, daily_free_conversions_used)
+    return counter.count_nodes(xml_content)
 
 
 

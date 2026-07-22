@@ -52,11 +52,6 @@ export function trackSignupClick(source: string) {
     trackEvent("signup_click", { source })
 }
 
-/** User clicked to purchase credits */
-export function trackCreditPurchaseClick(source: string) {
-    trackEvent("credit_purchase_click", { source })
-}
-
 /** User downloaded a converted file */
 export function trackFileDownload(fileType: string) {
     trackEvent("file_download", { file_type: fileType })

@@ -1,141 +1,120 @@
-# HANACV2SQL Project
+# HANACV2SQL — Enterprise Edition
 
 ## Overview
-SaaS tool that converts SAP HANA Calculation Views to SQL queries. Migrates HANA → BigQuery, Snowflake, Redshift, Databricks, Microsoft Fabric.
+Enterprise edition of the SAP HANA Calculation View → SQL conversion tool. A trimmed, self-contained fork of the SaaS version (`C:\Users\logav\Downloads\h2s-may29-v2`). No Supabase, no payments, no GCS. All conversions run locally with results served directly from memory.
 
 ## Tech Stack
 
 ### Frontend (Next.js 16 App Router)
 - **Framework**: Next.js 16 with TypeScript
 - **Styling**: Tailwind CSS
-- **Auth**: Supabase Auth
-- **Database**: Supabase (PostgreSQL)
-- **State**: React Context (AuthContext)
+- **State**: React Context (EnterpriseContext — unlimited, no auth)
 - **Deployment**: Cloud Run (standalone Docker)
 
 ### Backend (Flask/Python)
-- **Framework**: Flask
-- **API Client**: Python with BigQuery, GCS integrations
-- **DB**: Google BigQuery, Supabase
+- **Framework**: Flask + waitress
+- **AI**: Gemini API (`gemini-3.1-flash-lite-preview`, `gemini-2.5-flash-lite`)
+- **Storage**: Local filesystem (`OUTPUT_DIR`)
+- **DB**: None — all state in-memory
 
 ## Project Structure
 ```
-frontend/           # Next.js app (app router)
-  app/             # Pages, API routes, layouts
-  components/      # React components
-    ui/            # shadcn/ui components
-    conversion/    # File upload, conversion status
-    account/       # Conversion history, purchase history
-  lib/             # Utilities, API client, Supabase helpers
-  hooks/           # Custom React hooks
-  contexts/        # React contexts (Auth)
-  styles/          # Tailwind globals
-  public/          # Static assets
+frontend/              # Next.js 16 app (app router)
+  app/               # Pages, layouts, server actions
+  components/        # React components
+    ui/              # shadcn/ui components
+    conversion/      # File upload, conversion status, dashboard
+  lib/               # API client, config, analytics
+  hooks/             # Custom React hooks
+  contexts/         # EnterpriseContext (no auth)
+  styles/            # Tailwind globals
+  public/            # Static assets
 
-backend/           # Flask API
-  flask_app.py     # Main Flask app (PRD)
-  bulk_processor.py # Bulk ZIP file processing
-  api_client.py    # External API calls (BigQuery, Gemini, DeepSeek)
-  file_processor.py # XML to SQL conversion logic
-  node_counter.py  # Node counting and validation
-  requirements.txt  # Python dependencies
+backend/              # Flask API
+  flask_app.py       # Main Flask app — USE THIS
+  bulk_processor.py  # Bulk ZIP analysis and processing
+  file_processor.py  # XML to SQL conversion logic
+  node_counter.py    # Node counting and validation
+  sql_converter.py   # Core conversion entry point
+  api_client.py      # Gemini API client
+  mapping_sql_generator.py  # SQL generation from column mapping
+  local_storage.py   # Local filesystem output storage
+  node_cache.py      # Node dict caching
+  excel_encrypt.py   # Excel decryption utilities
+  test_gemini.py     # Gemini API test script
+  requirements.txt    # Python dependencies
   Dockerfile
+  .env               # API keys, OUTPUT_DIR (not committed)
 
-scripts/           # Deployment scripts
-supabase/          # DB migrations & schema
-visual-testing/    # Frontend/backend testing (Playwright, manual QA)
+visual-testing/      # Playwright E2E tests
 ```
 
 ## Conversion Modes
 
 ### Single File Conversion
-- Upload one XML file at a time
-- Immediate analysis and conversion
-- Progress shown via polling
+1. Upload HANA XML file
+2. `POST /api/analyze` — count nodes, validate structure
+3. `POST /api/start-conversion` — start conversion task
+4. Poll `GET /api/conversion-status/<task_id>` every 3s
+5. `GET /api/download/<session_id>` — download ZIP (sql or mapping)
 
 ### Bulk Conversion
-- Upload ZIP file containing multiple XML/TXT files
-- Automatic analysis of all files
-- Real-time progress dashboard
-- Download all results as single ZIP
+1. Upload ZIP file with multiple XML/TXT files
+2. `POST /api/bulk-analyze` — analyze all files, return node counts
+3. `POST /api/bulk-conversion` — start bulk task, returns immediately
+4. Poll `GET /api/bulk-status/<bulk_task_id>` every 5s
+5. `GET /api/bulk-download/<bulk_task_id>` — download all results as ZIP
 
-## Key Patterns
+## Key Differences from SaaS Version
 
-### Frontend → Backend API Calls
-- Frontend calls backend API at `NEXT_PUBLIC_API_BASE_URL`
-- Backend at `https://backend-prd-*.run.app`
-- Local dev: `http://localhost:8080`
-
-### Supabase Usage
-- Frontend: `@supabase/supabase-js` via `frontend/lib/supabase.ts`
-- Server: Admin access via `SUPABASE_SERVICE_ROLE_KEY`
-- Auth: Email/password via Supabase Auth
-
-## Conversion Flow
-
-### Single File Flow
-1. User uploads HANA XML file
-2. Frontend validates file type and size
-3. `analyzeXmlFile()` - Backend analyzes XML structure
-4. User confirms conversion type (Free/Paid)
-5. `startConversion()` - Backend starts conversion task
-6. Frontend polls `getConversionStatus()` every 3 seconds
-7. On completion, `downloadConvertedFile()` fetches ZIP
-8. Credits deducted via Supabase
-
-### Bulk Conversion Flow
-1. User uploads ZIP file
-2. Frontend extracts and validates files
-3. `analyzeBulkZip()` - Backend analyzes all files in ZIP
-4. Summary shows: total files, free/paid breakdown, credits needed
-5. User clicks "Start Bulk Conversion"
-6. `startBulkConversion()` - Backend creates bulk task, returns immediately
-7. Frontend polls `getBulkConversionStatus()` every 5 seconds
-8. Real-time dashboard shows progress per file
-9. On completion, `downloadBulkResult()` fetches ZIP
-10. Credits deducted per completed file
-
-## Credit Tiers
-| Nodes | Free Conversions | Paid Credits |
-|-------|-----------------|--------------|
-| 1-10 | 5 per day | 10 credits |
-| 11-20 | 0 | 10 credits |
-| 21-40 | 0 | 20 credits |
-| 41+ | 0 | 30 credits |
-
-## Important Tables (Supabase)
-- `users` - User accounts and credit balance
-- `conversions` - Conversion history & metadata
-- `purchases` - Credit purchases
-- `bulk_tasks` - Bulk conversion task status
-- `bulk_results` - Per-file bulk conversion results
-- `displayed_reviews` - Static testimonial content
-
-## Database Flow
-
-### During Bulk Conversion
-1. **Task Created** - `bulk_tasks` table entry with status "PROCESSING"
-2. **Per-File Records** - Each file creates `conversions` record
-3. **Immediate Updates** - Completed files update immediately
-4. **Polling Returns Fresh Data** - Frontend always sees latest state
-5. **Credits Deducted** - Only for successfully completed files
+| Feature | SaaS (h2s-may29-v2) | Enterprise (this) |
+|---------|---------------------|-------------------|
+| Auth | Supabase email/password | None — always authenticated |
+| Payments | PhonePe, PayPal, credits | None — unlimited |
+| Storage | GCS + Supabase | Local filesystem + memory |
+| DB | Supabase PostgreSQL | None |
+| AI models | Gemini, DeepSeek | Gemini only |
 
 ## Environment Variables
-- `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Frontend Supabase
-- `SUPABASE_SERVICE_ROLE_KEY` - Backend admin access
-- `NEXT_PUBLIC_API_BASE_URL` - Backend API endpoint
-- `GEMINI_API_KEY` / `DEEPSEEK_API_KEY` - AI for enhanced conversion
 
-## Conventions
-- Use TypeScript strict mode
-- All API routes return JSON
-- Credit deduction is server-side only
-- Conversion history stored in Supabase
-- Server actions in `frontend/app/actions/`
-- Component imports: use path aliases (`@/components/...`)
+### Backend (`backend/.env`)
+```
+GEMINI_API_KEY=                    # Required — Google AI Studio key
+OUTPUT_DIR=C:\Users\logav\Downloads\Output_h2s_local
+```
+
+### Frontend (`frontend/.env.local`)
+```
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
+```
+
+## Run Locally
+
+```bash
+# Backend
+cd backend
+pip install -r requirements.txt
+python flask_app.py       # Debug mode on :8080
+
+# Frontend
+cd frontend
+npm run dev              # Next.js on :3000
+```
+
+## Deployment
+
+Backend: Docker, Cloud Run. Set `GEMINI_API_KEY` and `OUTPUT_DIR` as environment variables at runtime — not baked into image.
+
+Frontend: Docker, Cloud Run. Set `NEXT_PUBLIC_API_BASE_URL` to the backend URL.
 
 ## Debugging
-- Backend logs: Cloud Run → Log Explorer
+
+- Backend logs: terminal output (DEBUG level locally)
 - Frontend: React DevTools, Network tab
-- Supabase: Dashboard → Table Editor
-- Credits: `frontend/lib/credit-audit.ts` for debugging
+- Gemini API: `python backend/test_gemini.py` — validates key and both model paths
+- Conversion output: `OUTPUT_DIR` directory on disk
+
+## Testing
+- Gemini test: `backend/test_gemini.py`
+- E2E tests: `visual-testing/` (Playwright)
+- **Do not** place test files inside `frontend/` or `backend/` — they break Docker builds

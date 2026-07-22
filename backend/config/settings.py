@@ -36,8 +36,6 @@ PARENT_WEBSITE_PAYMENT_API = os.getenv(
 STALE_THRESHOLD_SECONDS = 3600  # 60 minutes
 CONVERSION_TIMEOUT_SECONDS = 3600  # 60 minutes
 
-# GCS Settings
-GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME", "hana-cv-converter-files")
 
 # Initialize on module import
 load_environment()

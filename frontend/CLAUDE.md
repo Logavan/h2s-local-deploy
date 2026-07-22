@@ -3,7 +3,6 @@
 ## Tech Stack
 - Next.js 16 App Router, TypeScript strict mode
 - Tailwind CSS for styling
-- Supabase for auth and database
 - Server Actions for mutations
 
 ## Key Files
@@ -11,7 +10,6 @@
 lib/
   api.ts                # Backend API calls helper (fetchWithTimeout, etc.)
   config.ts             # Environment config
-  supabase.ts           # Client initialization
   conversions.ts        # Conversion utilities
 
 contexts/
@@ -19,9 +17,7 @@ contexts/
 
 app/
   actions/              # Server actions
-    check-daily-conversions.ts  # Daily free conversion limits
     conversion-actions.ts        # XML/SQL conversion
-    update-credits.ts           # Credit management
     newsletter-actions.ts      # Newsletter signup
   tools/
     hana-converter/     # Main conversion page
@@ -34,7 +30,6 @@ components/
   GraphvizViewer.tsx      # HANA dependency graph (SVG)
   account/
     ConversionHistory.tsx
-    PurchaseHistory.tsx
   conversion/
     FileUploadSection.tsx
     BulkFileUploadSection.tsx  # ZIP file upload for bulk
@@ -60,9 +55,9 @@ components/
 ### Single File
 ```typescript
 analyzeXmlFile(xmlContent, fileName, userEmail)
-// Returns: { success, node_count, complexity, conversion_type, credit_cost, session_id }
+// Returns: { success, node_count, complexity, conversion_type, session_id }
 
-startConversion(xmlContent, fileName, userEmail, conversionType, creditCost, nodeCount)
+startConversion(xmlContent, fileName, userEmail, conversionType, nodeCount)
 // Returns: { success, task_id, message }
 
 getConversionStatus(taskId)
@@ -75,7 +70,7 @@ downloadConvertedFile(sessionId, fileName)
 ### Bulk Operations
 ```typescript
 analyzeBulkZip(zipFile, userEmail)
-// Returns: { success, files[], total_nodes, total_credits, free_count, paid_count }
+// Returns: { success, files[], total_nodes }
 
 startBulkConversion(files, userEmail)
 // Returns: { success, bulk_task_id, message }
@@ -119,14 +114,6 @@ Shown during bulk conversion polling:
 │ ...                                │
 └─────────────────────────────────────┘
 ```
-
-## Credit Tiers
-| Nodes | Free Daily | Paid Credits |
-|-------|------------|--------------|
-| 1-10 | 5 | 10 |
-| 11-20 | 0 | 10 |
-| 21-40 | 0 | 20 |
-| 41+ | 0 | 30 |
 
 ## Error Handling
 
@@ -174,8 +161,6 @@ Main component handling both single and bulk modes:
 
 ## Environment Variables
 ```
-NEXT_PUBLIC_SUPABASE_URL
-NEXT_PUBLIC_SUPABASE_ANON_KEY
 NEXT_PUBLIC_API_BASE_URL      # Backend API (http://localhost:8080 locally)
 ```
 

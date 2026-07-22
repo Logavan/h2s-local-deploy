@@ -1,13 +1,10 @@
 
 # Set up your Gemini API key
-from dotenv import load_dotenv
 import os
-import httpx
-from openai import OpenAI
-
 import asyncio
 import httpx
-from openai import AsyncOpenAI
+from openai import OpenAI, AsyncOpenAI
+from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception, retry_if_result
@@ -64,19 +61,24 @@ def get_genai_async_client():
     if _genai_async_client is None:
         GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
         if GEMINI_API_KEY:
-            _genai_async_client = genai.Client(api_key=GEMINI_API_KEY, http_options={'api_version': 'v1alpha'}) # or v1
+            _genai_async_client = genai.Client(api_key=GEMINI_API_KEY, http_options={'api_version': 'v1beta'})
     return _genai_async_client
 
 def get_genai_sync_client():
-    return get_genai_async_client()
+    global _genai_async_client
+    if _genai_async_client is None:
+        GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+        if GEMINI_API_KEY:
+            _genai_async_client = genai.Client(api_key=GEMINI_API_KEY, http_options={'api_version': 'v1beta'})
+    return _genai_async_client
 
 # Cloud Run sets K_SERVICE env variable automatically
 if not os.getenv("K_SERVICE"):
     # Not running on Cloud Run, so load local env file
-    dotenv_path = os.path.join(os.path.dirname(__file__), '.env.local')
+    dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
     load_dotenv(dotenv_path)
 else:
-    # Running on Cloud Run, do NOT load .env.local
+    # Running on Cloud Run, do NOT load .env
     pass
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")

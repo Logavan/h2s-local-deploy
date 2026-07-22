@@ -129,8 +129,6 @@ export async function analyzeXmlFile(
   success: boolean
   node_count?: number
   complexity?: string
-  conversion_type?: string
-  credit_cost?: number
   session_id?: string
   line_count?: number
   error?: string
@@ -158,8 +156,6 @@ export async function analyzeXmlFile(
       success: boolean
       node_count?: number
       complexity?: string
-      conversion_type?: string
-      credit_cost?: number
       session_id?: string
       line_count?: number
       error?: string
@@ -180,22 +176,17 @@ export async function startConversion(
   xmlContent: string,
   fileName: string,
   userEmail: string,
-  conversionType: "Free" | "Paid",
-  creditCost: number,
   nodeCount?: number,
 ): Promise<{
   success: boolean
   message?: string
   task_id?: string
   node_count?: number
-  conversion_type?: string
-  credit_cost?: number
   dig_mapping_dot_string?: string
   error?: string
 }> {
   try {
     const apiUrl = getApiBaseUrl()
-    // console.log(`Initiating conversion for file: ${fileName} by ${userEmail}, type: ${conversionType}, cost: ${creditCost}`)
 
     const response = await fetchWithTimeout(`${apiUrl}/api/start-conversion`, {
       method: "POST",
@@ -206,8 +197,6 @@ export async function startConversion(
         xmlContent,
         fileName,
         email: userEmail,
-        conversionType,
-        creditCost,
         nodeCount,
       }),
     })
@@ -217,8 +206,6 @@ export async function startConversion(
       message?: string
       task_id?: string
       node_count?: number
-      conversion_type?: string
-      credit_cost?: number
       dig_mapping_dot_string?: string
       error?: string
     }>(response)
@@ -496,8 +483,6 @@ export async function applyMappingChanges(
 export interface BulkFileAnalysis {
   file_name: string
   node_count: number
-  credit_cost: number
-  conversion_type: "Free" | "Paid"
   line_count?: number
   content?: string  // XML content for conversion
 }
@@ -506,9 +491,6 @@ export interface BulkAnalysisResult {
   success: boolean
   files: BulkFileAnalysis[]
   total_nodes: number
-  total_credits: number
-  free_count: number
-  paid_count: number
   error?: string
 }
 
@@ -526,9 +508,6 @@ export async function analyzeBulkZip(
         success: false,
         files: [],
         total_nodes: 0,
-        total_credits: 0,
-        free_count: 0,
-        paid_count: 0,
         error: "API not configured",
       }
     }
@@ -561,9 +540,6 @@ export async function analyzeBulkZip(
         success: false,
         files: [],
         total_nodes: 0,
-        total_credits: 0,
-        free_count: 0,
-        paid_count: 0,
         error: errorMessage,
       }
     }
@@ -576,9 +552,6 @@ export async function analyzeBulkZip(
       success: false,
       files: [],
       total_nodes: 0,
-      total_credits: 0,
-      free_count: 0,
-      paid_count: 0,
       error: error instanceof Error ? error.message : "Bulk analysis failed",
     }
   }
@@ -587,8 +560,6 @@ export async function analyzeBulkZip(
 export interface BulkConversionFile {
   file_name: string
   content: string
-  conversion_type: "Free" | "Paid"
-  credit_cost: number
 }
 
 export interface BulkConversionRequest {
@@ -768,5 +739,62 @@ export async function checkConversionRunningStatus(
   } catch (error) {
     console.warn("Failed to check conversion running status:", error instanceof Error ? error.message : "Unknown error")
     return { isRunning: false }
+  }
+}
+
+// --- Previous Conversions (Mapping History) ---
+
+export interface PreviousConversion {
+  task_id: string
+  file_name: string
+  mapping_file: string
+  modified_at: string
+}
+
+export async function listPreviousConversations(): Promise<{
+  success: boolean
+  conversions: PreviousConversion[]
+  error?: string
+}> {
+  try {
+    const response = await fetchWithTimeout(`${apiUrl}/api/previous-conversions`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`)
+    }
+
+    const data = await response.json()
+    return data
+  } catch (error) {
+    console.error("Failed to list previous conversions:", error)
+    return { success: false, conversions: [], error: error instanceof Error ? error.message : "Unknown error" }
+  }
+}
+
+export async function downloadPreviousMapping(
+  taskId: string
+): Promise<{ type: "success"; file: File } | { type: "error"; message: string }> {
+  try {
+    const response = await fetchWithTimeout(`${apiUrl}/api/download/${taskId}?type=mapping`, {
+      method: "GET",
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`)
+    }
+
+    const blob = await response.blob()
+    const fileName = `${taskId}_mapping_sheet.xlsx`
+    const file = new File([blob], fileName, {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    })
+
+    return { type: "success", file }
+  } catch (error) {
+    console.error("Failed to download previous mapping:", error)
+    return { type: "error", message: error instanceof Error ? error.message : "Download failed" }
   }
 }

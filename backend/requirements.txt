@@ -13,9 +13,6 @@ requests==2.32.3
 urllib3==2.2.1
 httpx>=0.27.0,<0.28.0
 
-# Supabase client
-supabase>=2.10.0
-
 # XML
 xmltodict==0.13.0
 defusedxml

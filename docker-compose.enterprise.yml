@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.enterprise
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_BASE_URL=http://backend:8080
+      - NODE_ENV=production
+    depends_on:
+      - backend
+    networks:
+      - hanacv2sql-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.enterprise
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - FLASK_ENV=production
+      - OUTPUT_DIR=/data/outputs
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GOOGLE_APPLICATION_CREDENTIALS=/data/gcp-key.json
+      - BQ_PROJECT_ID=${BQ_PROJECT_ID}
+      - GCP_REGION=${GCP_REGION:-us-central1}
+    volumes:
+      - ./data/outputs:/data/outputs
+      - ${GOOGLE_APPLICATION_CREDENTIALS:-./data/gcp-key-placeholder.json}:/data/gcp-key.json:ro
+    networks:
+      - hanacv2sql-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8080/health', timeout=5).raise_for_status()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  hanacv2sql-network:
+    driver: bridge

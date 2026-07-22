@@ -122,7 +122,7 @@ export default function Footer() {
   } = {
     product: [
       { label: "HANA CV Converter", href: "/?tab=converter&scrollToTools=true", icon: Zap },
-      { label: "SQL Mapping Engine", href: "/?tab=mapper&scrollToTools=true", icon: Shield },
+      { label: "SQL/PySpark Mapping Engine", href: "/?tab=mapper&scrollToTools=true", icon: Shield },
       { label: "Features", href: "/features", icon: null },
       { label: "Pricing", href: "/pricing", icon: null },
     ],

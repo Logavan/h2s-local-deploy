@@ -1,4 +1,4 @@
-<arg_value>"""
+"""
 Local Filesystem Storage Module
 Replaces GCS and Supabase storage with local filesystem storage for enterprise deployment.
 """

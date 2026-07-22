@@ -25,7 +25,6 @@ import MappingEditorPopup from "./MappingEditorPopup"
 import SqlEditor from "./CodeEditor" // Import SqlEditor (renamed from CodeEditor)
 import NotebookRenderer from "./NotebookRenderer"
 import { Button } from "@/components/ui/button" // Import Button component
-import ConversionHistoryModal from "./ConversionHistoryModal" // Added import
 import { useAuth } from "@/contexts/AuthContext"
 import { useRouter } from "next/navigation"
 import { processXlsxFileForMapping, applyMappingChanges } from "@/lib/api"
@@ -494,7 +493,7 @@ export default function MappingTool() {
     return (
       <div className="mt-8">
         <h2 className="text-xl font-semibold text-primary mb-4">Select Target Platform</h2>
-        <p className="text-gray-600 mb-6">Choose the database platform you want to map your SQL to:</p>
+        <p className="text-gray-600 mb-6">Choose the database platform you want to map your SQL/PySpark to:</p>
 
         <div className="grid grid-cols-1 gap-3 sm:gap-4">
           {databasePlatforms.map((platform) => (
@@ -608,7 +607,7 @@ export default function MappingTool() {
         {/* Header section */}
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-4 mb-4 sm:mb-6">
           <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary">SQL Mapping Engine</h1>
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary">SQL/PySpark Mapping Engine</h1>
             <Link
               href="/how-to-use#sql-mapping-engine"
               className="inline-flex items-center px-3 py-1.5 text-xs sm:text-sm font-medium text-primary bg-secondary/10 rounded-full hover:bg-secondary/20 transition-colors self-start sm:self-auto"
@@ -688,7 +687,7 @@ export default function MappingTool() {
                 variant="outline"
                 className="flex items-center gap-2"
                 onClick={() => {
-                  if (!user) {
+                  if (false) {
                     router.push('/login')
                   } else {
                     setShowHistoryModal(true)
@@ -732,12 +731,6 @@ export default function MappingTool() {
           sqlContent={sqlContent}
           zipContents={xlsxContents}
           onSave={handleSaveMappings}
-        />
-
-        <ConversionHistoryModal
-          isOpen={showHistoryModal}
-          onClose={() => setShowHistoryModal(false)}
-          onSelectFile={handleHistoryFileSelect}
         />
 
         {/* Display Generated SQL Section */}

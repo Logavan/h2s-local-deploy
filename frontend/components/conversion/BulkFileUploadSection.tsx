@@ -9,15 +9,13 @@ export interface BulkFileInfo {
   name: string
   content: string
   nodes: number
-  credits: number
-  conversionType: "Free" | "Paid"
   status: "pending" | "analyzing" | "processing" | "completed" | "failed"
   error?: string
 }
 
 interface BulkFileUploadSectionProps {
   onFilesExtracted: (files: BulkFileInfo[]) => void
-  onAnalysisComplete: (files: BulkFileInfo[], totalCredits: number, paidCount: number) => void
+  onAnalysisComplete: (files: BulkFileInfo[]) => void
   disabled?: boolean
   userEmail?: string
 }
@@ -80,8 +78,6 @@ export function BulkFileUploadSection({
           name: filename,
           content: "", // Don't load content yet
           nodes: 0,    // Unknown until analysis
-          credits: 0,  // Unknown until analysis
-          conversionType: "Free", // Default until analysis
           status: "pending" as const,
         })
       }
@@ -140,17 +136,12 @@ export function BulkFileUploadSection({
           name: f.file_name,
           content: f.content || "",
           nodes: f.node_count || 0,
-          credits: f.credit_cost || 0,
-          conversionType: f.conversion_type === "Free" ? "Free" : "Paid",
           status: "pending" as const,
         }
       })
 
       setExtractedFiles(analyzedFiles)
-      onAnalysisComplete(analyzedFiles, 
-        analyzedFiles.filter(f => f.conversionType === "Paid").reduce((sum, f) => sum + f.credits, 0),
-        analyzedFiles.filter(f => f.conversionType === "Paid").length
-      )
+      onAnalysisComplete(analyzedFiles)
     } catch (err: any) {
       console.warn("Analysis error:", err)
       setError(err.message || "Failed to analyze files")
@@ -309,13 +300,10 @@ export function BulkFileUploadSection({
 
   // Calculate totals
   const totalNodes = extractedFiles.reduce((sum, f) => sum + f.nodes, 0)
-  const totalCredits = extractedFiles.filter(f => f.conversionType === "Paid").reduce((sum, f) => sum + f.credits, 0)
-  const freeCount = extractedFiles.filter(f => f.conversionType === "Free").length
-  const paidCount = extractedFiles.filter(f => f.conversionType === "Paid").length
 
   // Notify parent when analysis is complete
   const handleAnalysisComplete = () => {
-    onAnalysisComplete(extractedFiles, totalCredits, paidCount)
+    onAnalysisComplete(extractedFiles)
   }
 
   return (
@@ -454,8 +442,6 @@ export function BulkFileUploadSection({
                 <tr>
                   <th className="px-2 sm:px-4 py-2 sm:py-3 text-left font-medium text-gray-600 dark:text-gray-300">File Name</th>
                   <th className="px-2 sm:px-4 py-2 sm:py-3 text-center font-medium text-gray-600 dark:text-gray-300 hidden sm:table-cell">Nodes</th>
-                  <th className="px-2 sm:px-4 py-2 sm:py-3 text-center font-medium text-gray-600 dark:text-gray-300 hidden sm:table-cell">Credits</th>
-                  <th className="px-2 sm:px-4 py-2 sm:py-3 text-center font-medium text-gray-600 dark:text-gray-300 hidden sm:table-cell">Type</th>
                   <th className="px-2 sm:px-4 py-2 sm:py-3 text-center font-medium text-gray-600 dark:text-gray-300">Status</th>
                 </tr>
               </thead>
@@ -475,30 +461,6 @@ export function BulkFileUploadSection({
                         <span className="text-gray-400">-</span>
                       )}
                     </td>
-                    <td className="px-2 sm:px-4 py-2 sm:py-3 text-center hidden sm:table-cell">
-                      {hasTriggeredAnalysis ? (
-                        file.conversionType === "Free" ? (
-                          <span className="text-green-600 font-medium">Free</span>
-                        ) : (
-                          <span className="text-blue-600 font-medium">{file.credits}</span>
-                        )
-                      ) : (
-                        <span className="text-gray-400">-</span>
-                      )}
-                    </td>
-                    <td className="px-2 sm:px-4 py-2 sm:py-3 text-center hidden sm:table-cell">
-                      {hasTriggeredAnalysis ? (
-                        <span className={`inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded text-xs font-medium ${
-                          file.conversionType === "Free"
-                            ? "bg-green-100 text-green-800"
-                            : "bg-blue-100 text-blue-800"
-                        }`}>
-                          {file.conversionType}
-                        </span>
-                      ) : (
-                        <span className="text-gray-400">Pending</span>
-                      )}
-                    </td>
                     <td className="px-2 sm:px-4 py-2 sm:py-3 text-center">
                       <div className="flex items-center justify-center">
                         {getStatusIcon(file.status)}
@@ -513,22 +475,6 @@ export function BulkFileUploadSection({
                   <td className="px-2 sm:px-4 py-2 sm:py-3 text-center text-gray-700 dark:text-gray-200 hidden sm:table-cell">
                     {hasTriggeredAnalysis ? totalNodes : "-"}
                   </td>
-                  <td className="px-2 sm:px-4 py-2 sm:py-3 text-center hidden sm:table-cell">
-                    {hasTriggeredAnalysis ? (
-                      <span className="text-blue-600">{totalCredits}</span>
-                    ) : (
-                      <span className="text-gray-400">-</span>
-                    )}
-                  </td>
-                  <td className="px-2 sm:px-4 py-2 sm:py-3 text-center hidden sm:table-cell">
-                    {hasTriggeredAnalysis ? (
-                      <span className="text-gray-600 dark:text-gray-300 text-xs">
-                        {freeCount}F, {paidCount}P
-                      </span>
-                    ) : (
-                      <span className="text-gray-400">Pending</span>
-                    )}
-                  </td>
                   <td className="px-2 sm:px-4 py-2 sm:py-3"></td>
                 </tr>
               </tfoot>
@@ -539,7 +485,7 @@ export function BulkFileUploadSection({
           {hasTriggeredAnalysis && (
             <div className="mt-4 p-3 sm:p-4 bg-blue-50 border border-blue-200 rounded-lg">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
-                <div className="grid grid-cols-3 gap-2 sm:gap-4 sm:flex-1">
+                <div className="grid grid-cols-2 gap-2 sm:gap-4 sm:flex-1">
                   <div className="text-center">
                     <p className="text-[10px] sm:text-xs text-blue-600 uppercase font-medium">Files</p>
                     <p className="text-lg sm:text-2xl font-bold text-blue-800">{extractedFiles.length}</p>
@@ -548,18 +494,6 @@ export function BulkFileUploadSection({
                     <p className="text-[10px] sm:text-xs text-blue-600 uppercase font-medium">Nodes</p>
                     <p className="text-lg sm:text-2xl font-bold text-blue-800">{totalNodes}</p>
                   </div>
-                  <div className="text-center">
-                    <p className="text-[10px] sm:text-xs text-blue-600 uppercase font-medium">Credits</p>
-                    <p className="text-lg sm:text-2xl font-bold text-blue-800">{totalCredits}</p>
-                  </div>
-                </div>
-                <div className="flex items-center justify-center gap-2 sm:gap-3">
-                  <span className="inline-flex items-center px-2 sm:px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs sm:text-sm font-medium">
-                    {freeCount} Free
-                  </span>
-                  <span className="inline-flex items-center px-2 sm:px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs sm:text-sm font-medium">
-                    {paidCount} Paid
-                  </span>
                 </div>
               </div>
             </div>

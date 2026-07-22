@@ -1,4 +1,4 @@
-Getting Started Guide: HANA CV to SQL Converter
+Getting Started Guide: HANA CV Converter
 Updated: March 2026
 
 This guide will walk you through using our powerful SaaS platform, which converts SAP HANA Calculation Views into optimized SQL code compatible with modern databases like Google BigQuery, Snowflake, Databricks, Redshift, SAP DataSphere, Microsoft Fabric, and Azure Synapse Analytics.
@@ -47,7 +47,7 @@ After you log in, your dashboard is your central control panel, giving you acces
 
 Available Tools and Their Usage
 
---- TOOL 1: HANA CV to SQL Converter ---
+--- TOOL 1: HANA CV Converter ---
 
 This tool converts the logic from your HANA Calculation Views into standard SQL queries.
 

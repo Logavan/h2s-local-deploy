@@ -52,6 +52,7 @@ from bq_table import (
     delete_dataset
 )
 from bq_error_fixer import fix_bigquery_error, fix_all_common_errors, get_structured_error_context
+from debug_checkpoint import capture_node_dict_checkpoint
 
 # Suppress all messages from sqlfluff
 for logger_name in ['sqlfluff', 'sqlfluff.linter', 'sqlfluff.templater', 'sqlfluff.rules']:
@@ -140,7 +141,7 @@ def clean_orphan_nodes(node_dict):
             # No more orphans to remove, we're done
             break
         
-        print(f"Iteration {iteration}: Removing {len(orphans_to_remove)} orphan nodes: {orphans_to_remove}")
+        logger.info(f"Iteration {iteration}: Removing {len(orphans_to_remove)} orphan nodes: {orphans_to_remove}")
         
         # Remove orphan nodes from dictionary
         for orphan in orphans_to_remove:
@@ -176,7 +177,7 @@ def clean_orphan_nodes(node_dict):
             final_orphans.append(node_name)
     
     if final_orphans:
-        print(f"Final cleanup: Removing {len(final_orphans)} remaining orphan nodes: {final_orphans}")
+        logger.info(f"Final cleanup: Removing {len(final_orphans)} remaining orphan nodes: {final_orphans}")
         for orphan in final_orphans:
             node_dict.pop(orphan, None)
     
@@ -311,7 +312,9 @@ async def xml_to_sql_converter(xml_content, node_dict=None, target=None):
 # ##-----------------------------------------------------------------------------------------------------------
 
     # process_nodes_xml_sql_parallel(node_dict)
+    # capture_node_dict_checkpoint(node_dict, "before")  # TEMP: for testing
     await process_nodes_xml_sql_parallel_async(node_dict, target=target)
+    # capture_node_dict_checkpoint(node_dict, "after")  # TEMP: for testing
     logger.info("Node SQL processed in parallel.")
     logger.info(count_node_sql(node_dict))
     logger.info("XML to SQL processing completed for all nodes.")
@@ -475,7 +478,7 @@ def parse_sources_for_graph(s):
         elif isinstance(s, list):
             return s
         return []
-    except:
+    except (ValueError, SyntaxError):
         return []
     
 
@@ -3382,21 +3385,95 @@ def fill_node_json(node_dict):
 
 
 
-def fill_node_source_datatype_json(node_dict):
-    while True:
-        # Filter nodes where:
-        # - The field is missing OR
-        # - The field exists but doesn't contain any alphabetic characters
+def fill_node_source_datatype_json(
+    node_dict: dict, max_attempts: int = 3
+) -> None:
+    """Retry missing source datatypes without allowing an infinite loop.
+
+    When the LLM keeps returning an empty/invalid response for a node, fall back
+    to the regex-extracted ``Source Schema JSON`` (which contains only
+    ``<datatype>`` placeholders). The downstream temp-table generator already
+    treats ``<datatype>`` as a string, so the conversion can finish.
+    """
+    for attempt in range(1, max_attempts + 1):
+        # Only retry nodes the processor can actually handle. Nodes without XML
+        # or a source schema are populated later by append_source_schemas_compact.
         nodes_to_process = {
-            k: v for k, v in node_dict.items()
-            if not v.get("Source Schema w/ datatype JSON") or
-               not re.search(r'[A-Za-z]', str(v.get("Source Schema w/ datatype JSON")))
+            name: node
+            for name, node in node_dict.items()
+            if node.get("Node XML")
+            and node.get("Source Schema JSON")
+            and (
+                not node.get("Source Schema w/ datatype JSON")
+                or not re.search(
+                    r"[A-Za-z]",
+                    str(node.get("Source Schema w/ datatype JSON")),
+                )
+            )
         }
 
-        if nodes_to_process:
-            process_sources_json_datatype_parallel(nodes_to_process)
-        else:
-            break
+        if not nodes_to_process:
+            return
+
+        values_before_retry = {
+            name: str(node.get("Source Schema w/ datatype JSON"))
+            for name, node in nodes_to_process.items()
+        }
+        logger.info(
+            "Retrying source datatype generation for %d node(s), attempt %d/%d.",
+            len(nodes_to_process),
+            attempt,
+            max_attempts,
+        )
+        process_sources_json_datatype_parallel(nodes_to_process)
+
+        values_after_retry = {
+            name: str(node.get("Source Schema w/ datatype JSON"))
+            for name, node in nodes_to_process.items()
+        }
+        if values_after_retry == values_before_retry:
+            logger.warning(
+                "Source datatype generation made no progress for nodes: %s. "
+                "Stopping retries to prevent an infinite loop.",
+                ", ".join(sorted(nodes_to_process)),
+            )
+            return
+
+    # Final fallback: if the model never produced a usable datatype JSON, adopt
+    # the regex-extracted ``Source Schema JSON`` directly so the conversion can
+    # complete instead of stalling.
+    for name, node in node_dict.items():
+        if not node.get("Node XML") or not node.get("Source Schema JSON"):
+            continue
+        current = str(node.get("Source Schema w/ datatype JSON") or "")
+        if current and re.search(r"[A-Za-z]", current):
+            continue
+        regex_schema = node.get("Source Schema JSON") or ""
+        if re.search(r"[A-Za-z]", str(regex_schema)):
+            node["Source Schema w/ datatype JSON"] = regex_schema
+            logger.info(
+                "Adopted regex-extracted Source Schema JSON for %s after the "
+                "model produced no usable datatype response.",
+                name,
+            )
+
+    unresolved_nodes = [
+        name
+        for name, node in node_dict.items()
+        if node.get("Node XML")
+        and node.get("Source Schema JSON")
+        and (
+            not node.get("Source Schema w/ datatype JSON")
+            or not re.search(
+                r"[A-Za-z]", str(node.get("Source Schema w/ datatype JSON"))
+            )
+        )
+    ]
+    if unresolved_nodes:
+        logger.warning(
+            "Source datatype generation reached the retry limit for nodes: %s.",
+            ", ".join(sorted(unresolved_nodes)),
+        )
 
 
 
@@ -5184,6 +5261,52 @@ def find_actual_sources_chunkwise(node_dict):
 import re
 import sqlglot
 from sqlglot.expressions import Table, Column
+
+_TABLE_COLUMN_PATTERN = re.compile(
+    r"\b([A-Za-z_][A-Za-z0-9_]*)\s*\.\s*([A-Za-z_][A-Za-z0-9_]*)\b"
+)
+
+
+def _strip_strings_and_comments(sql: str) -> str:
+    """Remove string literals, line/block comments, and backticks for regex safety."""
+    # Drop block comments
+    sql = re.sub(r"/\*[\s\S]*?\*/", " ", sql)
+    # Drop single-line comments
+    sql = re.sub(r"--[^\n]*", " ", sql)
+    # Drop # comments used by some dialects
+    sql = re.sub(r"#[^\n]*", " ", sql)
+    # Remove double-quoted identifiers and string literals
+    sql = re.sub(r'"(?:[^"\\]|\\.)*"', " ", sql)
+    # Remove backticked identifiers
+    sql = re.sub(r"`[^`]*`", " ", sql)
+    # Remove single-quoted string literals
+    return re.sub(r"'(?:[^'\\]|\\.)*'", " ", sql)
+
+
+def _extract_tables_and_fields_from_string(sql: str) -> dict[str, dict[str, str]]:
+    """Regex-based fallback that survives broken/unparseable BigQuery SQL."""
+    cleaned_sql = _strip_strings_and_comments(sql)
+    table_fields: dict[str, set[str]] = {}
+    for prefix, column in _TABLE_COLUMN_PATTERN.findall(cleaned_sql):
+        # Skip obvious SQL keywords that sqlglot would never emit as a table prefix.
+        if prefix.upper() in {
+            "SELECT", "FROM", "WHERE", "GROUP", "ORDER", "HAVING", "LIMIT",
+            "OFFSET", "BY", "AND", "OR", "NOT", "NULL", "TRUE", "FALSE",
+            "CASE", "WHEN", "THEN", "ELSE", "END", "ON", "AS", "INNER",
+            "LEFT", "RIGHT", "FULL", "CROSS", "JOIN", "UNION", "ALL",
+            "INTERSECT", "EXCEPT", "OVER", "PARTITION", "VALUES", "INSERT",
+            "UPDATE", "DELETE", "SET", "INTO", "IS", "DISTINCT", "CAST",
+            "COALESCE", "NULLIF", "EXTRACT", "INTERVAL", "DATE", "TIME",
+            "TIMESTAMP", "DATETIME", "FORMAT", "SAFE", "LPAD", "RPAD",
+        }:
+            continue
+        table_fields.setdefault(prefix, set()).add(column)
+    return {
+        table: {field: "<datatype>" for field in sorted(fields)}
+        for table, fields in table_fields.items()
+        if fields
+    }
+
 
 def extract_tables_and_fields_source(sql):
     sql = sql.strip().strip('"').rstrip(";")
@@ -10031,7 +10154,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 def api_call_with_retry(model_name, full_prompt, task_type='sql'):
-    timeout = 60
+    timeout = 300  # 5 min per attempt — matches httpx client timeout
     max_retries = 3
     delay = 5
 
@@ -10060,24 +10183,26 @@ def api_call_with_retry(model_name, full_prompt, task_type='sql'):
                 full_prompt = (
                     f"{full_prompt}\n\n"
                     f"(Note: Attempt {attempt} timed out after {timeout} seconds. "
-                    f"Please respond within a minute on retry, but ensure accuracy.)"
+                    f"Please respond within 5 minutes on retry, but ensure accuracy.)"
                 )
 
                 time.sleep(delay)
 
             else:
-                # Final attempt → wait indefinitely but still handle errors
-                logger.info("Final attempt: waiting indefinitely until API responds...")
-                while not result:
+                # Final attempt → bounded wait (5 min) to avoid indefinite worker block
+                final_timeout = 300
+                logger.info(f"Final attempt: waiting up to {final_timeout}s until API responds...")
+                while time.time() - start_time < final_timeout:
                     try:
                         result = api_call(model_name, full_prompt, task_type=task_type)
                         if result:
                             return result
                     except Exception as e:
                         logger.error(f"Final attempt error for {model_name}: {str(e)}", exc_info=True)
-                        # wait a bit before retrying again indefinitely
                         time.sleep(5)
                     time.sleep(2)
+
+                logger.warning("Final attempt exhausted — giving up.")
 
         except Exception as e:
             logger.error(f"Unexpected error in retry logic (attempt {attempt}): {str(e)}", exc_info=True)
@@ -10092,13 +10217,7 @@ async def api_call_with_retry_async(model_name, full_prompt, task_type="sql", ta
     original_model = model_name
 
     for attempt in range(1, max_retries + 1):
-        # Switch model after first failure
-        if attempt == 2 and original_model.lower() == "gemini-3.1-flash-lite-preview":
-            model_name = "Gemini"
-            logger.info(f"Switching model to {model_name} on attempt {attempt}.")
-
-        # Set timeout based on current model
-        timeout = 60 if model_name.lower() == "gemini-3.1-flash-lite-preview" else 120
+        timeout = 300  # 5 min — matches httpx client timeout
 
         try:
             result = await asyncio.wait_for(
@@ -10116,5 +10235,5 @@ async def api_call_with_retry_async(model_name, full_prompt, task_type="sql", ta
             # backoff before retry
             await asyncio.sleep(delay)
 
-    logger.error(f"{model_name} failed after {max_retries} attempts.")
+    logger.error(f"{original_model} failed after {max_retries} attempts.")
     return None

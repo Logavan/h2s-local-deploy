@@ -6,7 +6,7 @@ from google.genai import types
 # Load environment variables
 if not os.getenv("K_SERVICE"):
     # Not running on Cloud Run
-    dotenv_path = os.path.join(os.path.dirname(__file__), '.env.local')
+    dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
     load_dotenv(dotenv_path)
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
