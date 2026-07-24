@@ -4,8 +4,8 @@ Replaces GCS and Supabase storage with local filesystem storage for enterprise d
 """
 
 import os
+import json
 import logging
-import time
 from pathlib import Path
 from datetime import datetime
 
@@ -50,8 +50,10 @@ def save_result(task_id, zip_content, mapping_content, metadata=None):
     # Sanitize the object name for filesystem
     safe_name = cv_object_name.replace(" ", "_").replace("-", "_")
 
-    # Create a subdirectory per task to avoid name collisions
-    task_dir = os.path.join(OUTPUT_DIR, task_id)
+    # Use cv_object_name_<timestamp> as subfolder instead of task_id
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    subfolder_name = f"{safe_name}_{timestamp}"
+    task_dir = os.path.join(OUTPUT_DIR, subfolder_name)
     try:
         Path(task_dir).mkdir(parents=True, exist_ok=True)
     except Exception as e:
@@ -84,9 +86,24 @@ def save_result(task_id, zip_content, mapping_content, metadata=None):
         logger.error(f"Failed to write mapping file {mapping_path}: {e}")
         raise
 
+    # Write manifest file so lookups by task_id still work
+    manifest = {
+        "task_id": task_id,
+        "cv_object_name": cv_object_name,
+        "subfolder": subfolder_name,
+        "saved_at": datetime.now().isoformat(),
+    }
+    manifest_path = os.path.join(task_dir, "_manifest.json")
+    try:
+        with open(manifest_path, "w") as f:
+            json.dump(manifest, f)
+    except Exception as e:
+        logger.warning(f"Failed to write manifest {manifest_path}: {e}")
+
     return {
         "sql_url": sql_path,
         "data_mapping_url": mapping_path,
+        "subfolder": subfolder_name,
         "sql_download_name": f"{safe_name}_converted.zip",
         "mapping_download_name": f"{safe_name}_mapping_sheet.xlsx",
     }
@@ -95,6 +112,7 @@ def save_result(task_id, zip_content, mapping_content, metadata=None):
 def get_result_url(task_id, file_type="sql"):
     """
     Get the local file path for a saved result.
+    Scans subdirectories for a _manifest.json to find the right folder.
 
     Args:
         task_id: Unique task/conversion ID
@@ -103,21 +121,31 @@ def get_result_url(task_id, file_type="sql"):
     Returns:
         str: local file path, or None if not found
     """
-    task_dir = os.path.join(OUTPUT_DIR, task_id)
-    if not os.path.isdir(task_dir):
+    if not os.path.isdir(OUTPUT_DIR):
         return None
 
-    # Look for files matching the expected pattern
-    if file_type == "mapping":
-        # Find the mapping sheet file
-        for fname in os.listdir(task_dir):
-            if fname.endswith("_mapping_sheet.xlsx"):
-                return os.path.join(task_dir, fname)
-    else:
-        # Find the SQL zip file
-        for fname in os.listdir(task_dir):
-            if fname.endswith(".zip"):
-                return os.path.join(task_dir, fname)
+    for subfolder in os.listdir(OUTPUT_DIR):
+        manifest_path = os.path.join(OUTPUT_DIR, subfolder, "_manifest.json")
+        if not os.path.isfile(manifest_path):
+            continue
+        try:
+            with open(manifest_path, "r") as f:
+                manifest = json.load(f)
+        except Exception:
+            continue
+        if manifest.get("task_id") != task_id:
+            continue
+
+        task_dir = os.path.join(OUTPUT_DIR, subfolder)
+        if file_type == "mapping":
+            for fname in os.listdir(task_dir):
+                if fname.endswith("_mapping_sheet.xlsx"):
+                    return os.path.join(task_dir, fname)
+        else:
+            for fname in os.listdir(task_dir):
+                if fname.endswith(".zip"):
+                    return os.path.join(task_dir, fname)
+        return None
 
     return None
 
@@ -125,6 +153,7 @@ def get_result_url(task_id, file_type="sql"):
 def get_result_info(task_id):
     """
     Get full result info (paths and download names) for a task.
+    Scans subdirectories for a _manifest.json to find the right folder.
 
     Args:
         task_id: Unique task/conversion ID
@@ -133,71 +162,46 @@ def get_result_info(task_id):
         dict with sql_url, data_mapping_url, sql_download_name, mapping_download_name
         or None if not found
     """
-    task_dir = os.path.join(OUTPUT_DIR, task_id)
-    if not os.path.isdir(task_dir):
-        return None
-
-    sql_url = None
-    data_mapping_url = None
-    sql_download_name = None
-    mapping_download_name = None
-
-    for fname in os.listdir(task_dir):
-        if fname.endswith(".zip"):
-            sql_url = os.path.join(task_dir, fname)
-            base = fname.replace(".zip", "")
-            sql_download_name = f"{base}_converted.zip"
-        elif fname.endswith("_mapping_sheet.xlsx"):
-            data_mapping_url = os.path.join(task_dir, fname)
-            mapping_download_name = fname
-
-    if not sql_url and not data_mapping_url:
-        return None
-
-    return {
-        "sql_url": sql_url,
-        "data_mapping_url": data_mapping_url,
-        "sql_download_name": sql_download_name or f"{task_id}_converted.zip",
-        "mapping_download_name": mapping_download_name or f"{task_id}_mapping_sheet.xlsx",
-    }
-
-
-def cleanup_old_results(max_age_hours=24):
-    """
-    Clean up old result files older than max_age_hours.
-
-    Args:
-        max_age_hours: Maximum age in hours before cleanup
-
-    Returns:
-        int: number of task directories removed
-    """
     if not os.path.isdir(OUTPUT_DIR):
-        return 0
+        return None
 
-    max_age_seconds = max_age_hours * 3600
-    current_time = time.time()
-    removed_count = 0
+    # Scan all subdirectories looking for a manifest with matching task_id
+    for subfolder in os.listdir(OUTPUT_DIR):
+        manifest_path = os.path.join(OUTPUT_DIR, subfolder, "_manifest.json")
+        if not os.path.isfile(manifest_path):
+            continue
+        try:
+            with open(manifest_path, "r") as f:
+                manifest = json.load(f)
+        except Exception:
+            continue
+        if manifest.get("task_id") != task_id:
+            continue
 
-    try:
-        for entry in os.listdir(OUTPUT_DIR):
-            entry_path = os.path.join(OUTPUT_DIR, entry)
-            if not os.path.isdir(entry_path):
+        task_dir = os.path.join(OUTPUT_DIR, subfolder)
+        sql_url = None
+        data_mapping_url = None
+        sql_download_name = None
+        mapping_download_name = None
+
+        for fname in os.listdir(task_dir):
+            if fname == "_manifest.json":
                 continue
+            if fname.endswith(".zip"):
+                sql_url = os.path.join(task_dir, fname)
+                sql_download_name = f"{fname.replace('.zip', '')}_converted.zip"
+            elif fname.endswith("_mapping_sheet.xlsx"):
+                data_mapping_url = os.path.join(task_dir, fname)
+                mapping_download_name = fname
 
-            try:
-                # Check modification time of the directory
-                mtime = os.path.getmtime(entry_path)
-                if current_time - mtime > max_age_seconds:
-                    # Remove the entire task directory
-                    import shutil
-                    shutil.rmtree(entry_path)
-                    removed_count += 1
-                    logger.info(f"Cleaned up old result directory: {entry_path}")
-            except Exception as e:
-                logger.warning(f"Failed to check/remove {entry_path}: {e}")
-    except Exception as e:
-        logger.error(f"Error during cleanup of old results: {e}")
+        if not sql_url and not data_mapping_url:
+            return None
 
-    logger.info(f"Cleanup complete. Removed {removed_count} old result directories.")
-    return removed_count
+        return {
+            "sql_url": sql_url,
+            "data_mapping_url": data_mapping_url,
+            "sql_download_name": sql_download_name or f"{task_id}_converted.zip",
+            "mapping_download_name": mapping_download_name or f"{task_id}_mapping_sheet.xlsx",
+        }
+
+    return None

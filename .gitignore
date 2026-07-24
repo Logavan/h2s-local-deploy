@@ -99,3 +99,13 @@ error_utf8.log
 
 # Skills
 skills/
+
+# Excel / Office temp/lock files
+~*.xlsx
+~*.xls
+~*.xlsm
+~*.docx
+~*.doc
+~*.pptx
+~*.ppt
+.*.swp

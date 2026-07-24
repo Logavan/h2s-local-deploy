@@ -40,6 +40,7 @@ from google.api_core.exceptions import GoogleAPICallError, RetryError, DeadlineE
 
 # Local Imports
 from logger_setup import logger
+from config.settings import GEMINI_MODEL
 from api_client import api_call, api_call_flash, api_call_async, api_call_flash_async
 from node_cache import load_node_dict, save_node_dict
 from bq_table import (
@@ -51,7 +52,7 @@ from bq_table import (
     run_bigquery_sql_async, 
     delete_dataset
 )
-from bq_error_fixer import fix_bigquery_error, fix_all_common_errors, get_structured_error_context
+from bq_error_fixer import fix_bigquery_error, fix_all_common_errors
 from debug_checkpoint import capture_node_dict_checkpoint
 
 # Suppress all messages from sqlfluff
@@ -1490,62 +1491,6 @@ def consolidated_sql(node_dict):
     return cleaned_chunks[0][1]
 
 
-
-
-
-def write_sql_to_zip(node_dict):
-    # Get SQL string
-    sql = consolidated_sql(node_dict)
-
-    # Write to sqlfile.sql
-    with open("sqlfile.sql", "w") as f:
-        f.write(sql)
-
-    # Create a zip file and add sqlfile.sql to it
-    with zipfile.ZipFile("sqlfile.zip", "w", zipfile.ZIP_DEFLATED) as zipf:
-        zipf.write("sqlfile.sql")
-
-    # logger.info("SQL written to sqlfile.sql and compressed as sqlfile.zip")
-
-
-
-
-# sql = consolidated_sql(node_dict)
-# logger.info("Consolidated SQL:")
-# logger.info(sql)
-
-
-
-
-
-
-# def format_sql_query(query):
-#     # Format the SQL query with sqlparse
-#     formatted = sqlparse.format(
-#         query,
-#         keyword_case='upper',  # Uppercase keywords (SELECT, FROM, etc.)
-#         identifier_case='lower',  # Lowercase identifiers (column/table names)
-#         reindent=True,  # Add basic indentation
-#         indent_width=4,  # 4 spaces per indent level
-#         wrap_after=80,  # Line width
-#         comma_first=False,  # Commas at end of line
-#         use_space_around_operators=True,  # Spaces around =, +, etc.
-#         reindent_aligned=True 
-#     )
-#     return formatted.strip()
-
-# sql = consolidated_sql(node_dict)
-# # Add the new logic to replace quotes
-# sql = sql.replace('"4', '')  # First replace all "4 with blank
-# sql = sql.replace('"', '')   # Then replace all " with blank
-# sql = sql.strip().strip('"').rstrip(";")
-# formatted_query = format_sql_query(sql)
-# logger.info(formatted_query)
-
-
-
-
-
 async def add_optimized_column_parallel(ds_name, node_dict, max_concurrent=20):
     """Add optimized column to primary nodes in parallel (updates original dict)"""
     semaphore = asyncio.Semaphore(max_concurrent)
@@ -2031,7 +1976,7 @@ Fix the **Manually Converted SQL** to meet these conditions:
         not_found_pattern = r"not found inside"
         if chunkwise_error:
             not_found_match = re.search(not_found_pattern, chunkwise_error)
-                # Deepseek error dertermine
+                # Determine error
         if syntax_error and not not_found_match:
             deepseek_input = (
                 f"{sql_input}\n"
@@ -2042,7 +1987,7 @@ Fix the **Manually Converted SQL** to meet these conditions:
                 f"You must suggest fixes only related to SQL syntax errors. Do not suggest any changes related to business logic."
                 f"Do not suggest any changes related to subquery or CTE."
             )
-            deepseek_output = await api_call_with_retry_async('gemini-3.1-flash-lite-preview', deepseek_input, task_type='sql')
+            deepseek_output = await api_call_with_retry_async(GEMINI_MODEL, deepseek_input, task_type='sql')
         elif not_found_match:
             deepseek_output = f"The error is related to missing column.This column may be renamed between source and target structure. So please fix it.Refer to the schema: {chunk_schema}"
         # Exit conditions
@@ -2382,7 +2327,7 @@ Fix the **Manually Converted SQL** to meet these conditions:
             not_found_match = re.search(not_found_pattern, chunkwise_error)
 
 
-        # Deepseek error dertermine
+        # Determine error
     
         if syntax_error and not not_found_match:
             deepseek_input = (
@@ -2394,8 +2339,8 @@ Fix the **Manually Converted SQL** to meet these conditions:
                 f"Your output must not have any subquery or CTE."
                 f"Focus on fix only error."
             )
-            deepseek_output = await api_call_with_retry_async('gemini-3.1-flash-lite-preview', deepseek_input, task_type='sql')
-            # logger.info(f"Deepseek output:{deepseek_output}")
+            deepseek_output = await api_call_with_retry_async(GEMINI_MODEL, deepseek_input, task_type='sql')
+            # Gemini output:{deepseek_output}")
         elif not_found_match:
             deepseek_output = f"The error is related to missing column.This column may be renamed between source and target structure. So please fix it.Refer to the schema: {chunk_schema}"
         
@@ -2692,7 +2637,7 @@ Fix the **Manually Converted SQL** to meet these conditions:
         if chunkwise_error:
             not_found_match = re.search(not_found_pattern, chunkwise_error)
 
-        # Use gemini-3.1-flash-lite-preview/Deepseek only for complex logic errors, not simple missing columns
+        # Use Gemini (via GEMINI_MODEL) only for complex logic errors, not simple missing columns
         deepseek_output = ""
         if final_error_msg and not not_found_match:
             deepseek_input = (
@@ -2703,7 +2648,7 @@ Fix the **Manually Converted SQL** to meet these conditions:
                 f"Explain the error and provide a FIXED SQL query. No explanation text, just SQL."
             )
             # Use a faster, lighter call if possible or just rely on the smart model
-            deepseek_output = await api_call_with_retry_async('gemini-3.1-flash-lite-preview', deepseek_input, task_type='sql')
+            deepseek_output = await api_call_with_retry_async(GEMINI_MODEL, deepseek_input, task_type='sql')
         elif not_found_match:
              deepseek_output = f"Check column names against schema: {chunk_schema}"
 
@@ -7302,7 +7247,7 @@ Formula details: {formula_result}"""
             sql_text_1 = await api_call_with_retry_async('Gemini', current_prompt, task_type='sql', target=target)
             logger.info(f"attempt: {attempt+1} ---- {node_name} step 1---- Gemini Finished time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
             
-            # 1b. INTERMEDIATE VALIDATION - Check Gemini's output before passing to gemini-3.1-flash-lite-preview
+            # 1b. INTERMEDIATE VALIDATION - Check Gemini's output before passing to refinement model
             intermediate_validation = basic_sql_validator(sql_text_1 or "", node, target_name)
             validation_feedback = ""
             if not intermediate_validation["is_valid"]:
@@ -7316,7 +7261,7 @@ Formula details: {formula_result}"""
                 validation_feedback += "\n\nFIX THESE ISSUES in your output."
                 logger.info(f"{node_name} intermediate validation found issues: {intermediate_validation['issues']}")
 
-            # 1c. Second call (Refinement with gemini-3.1-flash-lite-preview) - Pass validation feedback
+            # 1c. Second call (Refinement) - Pass validation feedback
             refine_prompt_1 = (
                 f"{prompt}\n\n"
                 f"XML Content:\n{xml_content}\n\n"
@@ -7335,8 +7280,8 @@ Formula details: {formula_result}"""
                 f"Remember: You are specialized in {target_name} and must produce production-ready SQL.\n"
                 f"Return only pure sql without comments and ending with semicolon"
             )
-            sql_text_2 = await api_call_with_retry_async('gemini-3.1-flash-lite-preview', refine_prompt_1, task_type='sql', target=target)
-            logger.info(f"attempt: {attempt+1} ---- {node_name} step 2---- Gemini 3.1 Flash Lite Finished time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            sql_text_2 = await api_call_with_retry_async(GEMINI_MODEL, refine_prompt_1, task_type='sql', target=target)
+            logger.info(f"attempt: {attempt+1} ---- {node_name} step 2---- Gemini 2.5 Flash Lite Finished time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
             # sql_text_2 = remove_before_first_select(sql_text_2)
             # sql_text_2 = remove_non_sql_context(sql_text_2)
             # sql_text_2 = remove_unwanted_patterns(sql_text_2)
@@ -8743,7 +8688,7 @@ logger = logging.getLogger(__name__)
 async def process_single_node_gcp_validation_async(node_name, node, temp_table):
     """
     Optimized: Two-step LLM workflow for validating and fixing SQL for a single node.
-    Step 1: Deepseek determines the issue.
+    Step 1: Gemini determines the issue.
     Step 2: Gemini fixes the SQL based on the error analysis.
     """
     node_sql_val = node.get("Node SQL", "").strip()
@@ -8776,7 +8721,7 @@ async def process_single_node_gcp_validation_async(node_name, node, temp_table):
 
         logger.info(f"Attempt {attempt + 1} validation for {display_name}: {gcp_validation}")
 
-        # Step 1: Deepseek determines the issue
+        # Step 1: Gemini determines the issue
         if not deepseek_output:
             try:
                 deepseek_prompt = (
@@ -8801,16 +8746,16 @@ async def process_single_node_gcp_validation_async(node_name, node, temp_table):
                 missing_grouped_column = match_grouped.group(1) if match_grouped else None
 
             except Exception as e:
-                logger.info(f"Deepseek API error: {e}")
+                logger.info(f"Gemini API error: {e}")
                 deepseek_output = ""
 
-        # Step 2: Gemini fixes the SQL based on Deepseek output
+        # Step 2: Gemini fixes the SQL based on Gemini output
         try:
             gemini_prompt = (
                 f"{direct_conversion_prompt}\n\n"
                 f"Original SQL:\n{node_sql_val}\n\n"
                 f"BigQuery Error:\n{gcp_validation}\n\n"
-                f"Error Analysis from Deepseek:\n{deepseek_output}\n\n"
+                f"Error Analysis from Gemini:\n{deepseek_output}\n\n"
                 f"XML content:\n{xml_content}\n\n"
                 f"IMPORTANT RULES:\n"
                 f"1. Return only SQL starting with SELECT.\n"

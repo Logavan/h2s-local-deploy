@@ -12,7 +12,7 @@ from .dependency_graph import build_graph, auto_resolve_links, DependencyGraph
 from .mapping_service import MappingService
 from .sql_composer import compose_sql, get_dialect_adapter
 from .pyspark_composer import compose_pyspark
-from .tasks import start_generation_task, get_generation_result
+from .tasks import start_generation_task
 
 __all__ = [
     # models
@@ -33,5 +33,5 @@ __all__ = [
     "compose_sql", "get_dialect_adapter",
     "compose_pyspark",
     # tasks
-    "start_generation_task", "get_generation_result",
+    "start_generation_task",
 ]

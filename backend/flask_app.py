@@ -3,8 +3,8 @@ import asyncio
 from flask_cors import CORS
 import io
 import os
-import pandas
 import json
+import re
 import logging
 import traceback
 from datetime import datetime
@@ -18,10 +18,15 @@ import signal
 import time
 import atexit
 
+# Load .env BEFORE any application imports that might read config/settings
+if not os.getenv("K_SERVICE"):
+    dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
+    load_dotenv(dotenv_path)
+
 # Import our custom modules
 from node_counter import count_xml_nodes
 from sql_converter import convert_xml_to_sql
-from node_cache import save_node_dict, load_node_dict, delete_node_dict_pickle, get_pickle_path
+from node_cache import save_node_dict, load_node_dict, delete_node_dict_pickle
 from file_processor import construct_node_dict, validate_node_dict, dig_mapping_generator
 from bulk_processor import bulk_processor
 from werkzeug.utils import secure_filename
@@ -35,29 +40,18 @@ from nested_cv import (
     auto_resolve_links,
     MappingService,
     start_generation_task,
-    get_generation_result,
     NestedSession,
     CvArtifact,
     DependencyLink,
     MappingEntry,
     EmissionMode,
+    OutputFormat,
 )
 from excel_encrypt import decrypt_xlsx_file
 from api_client import api_call_flash, api_call
 import base64
 
 from urllib.parse import urlparse
-import re
-from datetime import timedelta
-
-# Cloud Run sets K_SERVICE env variable automatically
-if not os.getenv("K_SERVICE"):
-    # Not running on Cloud Run, so load local env file
-    dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
-    load_dotenv(dotenv_path)
-else:
-    # Running on Cloud Run, do NOT load .env
-    pass
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
@@ -239,7 +233,9 @@ def create_app():
             # Count nodes and validate
             result = count_xml_nodes(xml_content)
 
-            session_id = f"{file_name}_{datetime.now().timestamp()}"
+            # Sanitize filename to prevent path traversal in session_id
+            safe_name = re.sub(r'[^a-zA-Z0-9_-]', '_', file_name)
+            session_id = f"{safe_name}_{datetime.now().timestamp()}"
 
             if result["success"]:
                 conversion_sessions[session_id] = {
@@ -1141,6 +1137,10 @@ def nested_create_session():
         output_format = data.get("output_format", "sql")
         if output_format not in ("sql", "pyspark"):
             return jsonify({"error": "Invalid output_format. Must be 'sql' or 'pyspark'"}), 400
+        if output_format == "pyspark" and target_dialect not in ("azure", "databricks"):
+            return jsonify({
+                "error": "PySpark output is only available for Microsoft Fabric (azure) and Databricks."
+            }), 400
 
         store = get_session_store()
         session = store.create_session(target_dialect, output_format)
@@ -1173,7 +1173,7 @@ def nested_delete_session(session_id):
     return jsonify({"success": True}), 200
 
 
-# POST /api/nested/sessions/<session_id>/cvs — Add CV
+# POST /api/nested/sessions/<session_id>/cvs — Add CV (JSON content)
 @app.route('/api/nested/sessions/<session_id>/cvs', methods=['POST', 'OPTIONS'])
 def nested_add_cv(session_id):
     if request.method == 'OPTIONS':
@@ -1221,6 +1221,376 @@ def nested_add_cv(session_id):
     except Exception as e:
         logger.error(f"nested_add_cv error: {e}")
         return jsonify({"error": str(e)}), 500
+
+
+# POST /api/nested/sessions/<session_id>/cvs/xlsx — Add CV from XLSX file
+@app.route('/api/nested/sessions/<session_id>/cvs/xlsx', methods=['POST', 'OPTIONS'])
+def nested_add_cv_from_xlsx(session_id):
+    """
+    Accepts an XLSX mapping file upload, processes it through the mapping engine
+    to extract sqlInfo and mappingInfo, then creates a CvArtifact from it.
+    Reuses the same XLSX processing logic as the Mapping Tool.
+    """
+    if request.method == 'OPTIONS':
+        return '', 200
+    session = _session_or_404(session_id)
+    if isinstance(session, tuple):
+        return session
+    try:
+        if 'xlsxFile' not in request.files:
+            return jsonify({"error": "No XLSX file provided"}), 400
+
+        xlsx_file = request.files['xlsxFile']
+        if xlsx_file.filename == '':
+            return jsonify({"error": "No selected file"}), 400
+
+        password = request.form.get('password', 'mypassword123la')
+        parent_source_ref = request.form.get('parentSourceRef', '').strip()
+        parent_artifact_id = request.form.get('parentArtifactId', '').strip()
+        selected_source = request.form.get('selectedSource', '').strip()
+        inspect_only = request.form.get('inspectOnly', '').lower() == 'true'
+
+        if bool(parent_source_ref) != bool(parent_artifact_id):
+            return jsonify({"error": "parentSourceRef and parentArtifactId must be provided together"}), 400
+        if parent_artifact_id and parent_artifact_id not in session.artifacts:
+            return jsonify({"error": "Parent artifact not found"}), 404
+
+        # Decrypt and read the XLSX (same as mapping engine)
+        xls = decrypt_xlsx_file(xlsx_file, password)
+
+        sql_info_df = (
+            pd.read_excel(xls, sheet_name='sql info')
+            .astype(str)
+            .replace('nan', '')
+            .dropna(how='all')
+        )
+        mapping_info_df = (
+            pd.read_excel(xls, sheet_name='mapping info')
+            .astype(str)
+            .replace('nan', '')
+            .dropna(how='all')
+        )
+
+        sql_info_records = sql_info_df.to_dict(orient='records')
+        renamed_mapping_df = mapping_info_df.rename(columns={
+            'Original Table': 'sourceTable',
+            'Original Column': 'sourceField',
+            'New Table': 'targetTable',
+            'New Column': 'targetField'
+        })
+        mapping_records = renamed_mapping_df.to_dict(orient='records')
+
+        logger.info(f"[XLSX] sql_info columns: {list(sql_info_df.columns)}")
+        logger.info(f"[XLSX] sql_info_records[0] keys: {list(sql_info_records[0].keys()) if sql_info_records else 'empty'}")
+        logger.info(f"[XLSX] mapping_records[0]: {mapping_records[0] if mapping_records else 'empty'}")
+
+        # Build a synthetic JSON structure compatible with parse_mapping_content (v2 format)
+        # The sql_info tab has 'SourceTable_mapping_fields' as a string dict like "{'scalmonth': ['col1', 'col2']}"
+        # We parse it to extract unique source tables.
+        # Fallback: also extract FROM clause from SQL to get table names.
+        import ast, re
+        dependencies = []
+        seen_sources = set()
+        for row in sql_info_records:
+            mapping_fields_raw = str(row.get('SourceTable_mapping_fields', '')).strip()
+            sql_content = str(row.get('Chunk SQL Primary Optimized Base', ''))
+            # Try SourceTable_mapping_fields first
+            tables_found = set()
+            mapping_fields_dict = {}
+            if mapping_fields_raw and mapping_fields_raw != 'nan':
+                try:
+                    mapping_fields = ast.literal_eval(mapping_fields_raw)
+                    if isinstance(mapping_fields, dict):
+                        for src_table in mapping_fields.keys():
+                            tables_found.add(str(src_table).strip())
+                except (ValueError, SyntaxError):
+                    pass
+            # Fallback: extract FROM table_name from SQL
+            if not tables_found and sql_content:
+                from_matches = re.findall(
+                    r'\bFROM\s+([a-zA-Z_][a-zA-Z0-9_]*)',
+                    sql_content, re.IGNORECASE
+                )
+                tables_found.update(from_matches)
+            source_matches_selection = not selected_source or any(
+                selected_source.upper() in {
+                    str(source).upper(),
+                    str(source).split(".")[-1].upper(),
+                }
+                for source in tables_found
+            )
+            if not source_matches_selection:
+                continue
+            for src_table in tables_found:
+                if not src_table or src_table in seen_sources:
+                    continue
+                seen_sources.add(src_table)
+                dependencies.append({
+                    "source_ref_raw": src_table,
+                    "source_ref_canonical": src_table.upper(),
+                    "object_kind": _infer_object_kind(src_table),
+                    "referenced_by_node": str(row.get('Node name', row.get('node_name', 'unknown'))).strip(),
+                    "required_columns": mapping_fields.get(src_table, []) if mapping_fields_raw and mapping_fields_raw != "nan" else []
+                })
+
+        logger.info(f"[XLSX] final dependencies count: {len(dependencies)}, deps: {dependencies}")
+
+        # Build output_schema from mapping_info distinct columns
+        output_schema = []
+        for i, row in enumerate(mapping_records):
+            col_name = str(row.get('sourceField', row.get('source_column', f'COL_{i}'))).strip()
+            if col_name and col_name != 'nan':
+                output_schema.append({
+                    "ordinal": i,
+                    "column_name": col_name,
+                    "data_type": None,
+                    "nullable": True
+                })
+
+        # Build sql_chunks from sql_info
+        sql_chunks = []
+        for i, row in enumerate(sql_info_records):
+            node_name = str(row.get('Node name', row.get('node_name', f'node_{i}'))).strip()
+            sql_content = str(row.get('Chunk SQL Primary Optimized Base', row.get('sql_statement', '-- No SQL'))).strip()
+            if sql_content and sql_content != 'nan':
+                sql_chunks.append({
+                    "chunk_id": str(uuid.uuid4()),
+                    "sql_content": sql_content,
+                    "node_name": node_name
+                })
+
+        # Build mapping_rows from mapping_records
+        mapping_rows = []
+        for row in mapping_records:
+            src_table = str(row.get('sourceTable', '')).strip()
+            src_col = str(row.get('sourceField', '')).strip()
+            tgt_table = str(row.get('targetTable', '')).strip()
+            tgt_col = str(row.get('targetField', '')).strip()
+            if src_table and src_col:
+                mapping_rows.append({
+                    "source_ref_canonical": src_table.upper(),
+                    "source_column_raw": src_col,
+                    "target_table": tgt_table,
+                    "target_column": tgt_col,
+                    "artifact_id": None
+                })
+
+        # Assemble into v2-compatible artifact JSON
+        cv_display_name = xlsx_file.filename.replace('.xlsx', '').replace('.xls', '')
+        artifact_json = json.dumps({
+            "schema_version": 2,
+            "artifact_manifest": {
+                "cv_canonical_id": None,
+                "cv_display_name": cv_display_name
+            },
+            "cv_name": cv_display_name,
+            "dependencies": dependencies,
+            "output_schema": output_schema,
+            "sql_chunks": sql_chunks,
+            "mapping_info": mapping_rows
+        })
+
+        # Reuse the existing parse_mapping_content to build the CvArtifact
+        artifact = parse_mapping_content(artifact_json, xlsx_file.filename, password)
+        # Store raw sql_info for reuse by generate_sql_from_mapping (parity with Mapping Tool)
+        artifact.sql_info_raw = sql_info_records
+        # Override mapping_rows with the ones we extracted from the XLSX
+        artifact.mapping_rows = []
+        for m in mapping_rows:
+            entry = MappingEntry(
+                source_ref_canonical=m["source_ref_canonical"],
+                source_column_raw=m["source_column_raw"],
+                target_table=m["target_table"],
+                target_column=m["target_column"],
+                artifact_id=artifact.artifact_id
+            )
+            artifact.mapping_rows.append(entry)
+
+        if inspect_only:
+            # Build a de-duplicated list of source tables from the mapping_info sheet.
+            # This is the most reliable source: every workbook has a mapping_info sheet
+            # with sourceTable/sourceField columns, even when the sql_info sheet is empty
+            # or has unexpected column names.
+            seen_source_tables: set[str] = set()
+            source_tables_list: list[dict] = []
+            for row in mapping_records:
+                src_table = str(row.get("sourceTable", row.get("Original Table", ""))).strip()
+                src_field = str(row.get("sourceField", row.get("Original Column", ""))).strip()
+                tgt_table = str(row.get("targetTable", row.get("New Table", ""))).strip()
+                if not src_table or src_table == "nan" or src_table.upper() in seen_source_tables:
+                    continue
+                seen_source_tables.add(src_table.upper())
+                source_tables_list.append({
+                    "source_table_name": src_table,
+                    "source_field": src_field,
+                    "target_table": tgt_table,
+                })
+
+            # Extract output columns from the LAST chunk SQL (which is the final output
+            # of this CV that the parent CV will reference). The columns come from
+            # SELECT aliases: e.g. "SELECT SUBSTR(...) AS datafield_year, ... AS calmonth_s".
+            # These are the actual linkage columns between parent and nested CV.
+            output_columns: list[str] = []
+            last_chunk_sql = ""
+            if sql_info_records:
+                # Sort by chunk number ascending, pick the last one
+                def _chunk_num(row):
+                    try:
+                        return int(row.get("Chunk Number", 0) or 0)
+                    except (ValueError, TypeError):
+                        return 0
+                sorted_chunks = sorted(sql_info_records, key=_chunk_num)
+                last_row = sorted_chunks[-1] if sorted_chunks else {}
+                last_chunk_sql = str(last_row.get("Chunk SQL Primary Optimized Base", "")).strip()
+                if last_chunk_sql and last_chunk_sql != "nan":
+                    # Extract ONLY the SELECT clause (between SELECT and FROM) so we
+                    # don't pick up table aliases like `scalmonth AS t1` from FROM/JOIN.
+                    select_match = re.search(
+                        r'\bSELECT\b(.*?)\bFROM\b',
+                        last_chunk_sql,
+                        re.IGNORECASE | re.DOTALL
+                    )
+                    select_clause = select_match.group(1) if select_match else last_chunk_sql
+                    # Match aliases: `AS <name>` (case-insensitive, optional double-quotes)
+                    alias_matches = re.findall(
+                        r'\bAS\s+"?([A-Za-z_][A-Za-z0-9_]*)"?\s*(?=[\s,)])',
+                        select_clause,
+                        re.IGNORECASE
+                    )
+                    # Dedupe while preserving order
+                    seen_aliases = set()
+                    for alias in alias_matches:
+                        if alias.lower() not in seen_aliases:
+                            seen_aliases.add(alias.lower())
+                            output_columns.append(alias)
+
+            # Also extract unique source tables from the last chunk's FROM clause
+            # (in case mapping_info is missing/empty but SQL has them)
+            last_chunk_sources: list[str] = []
+            if last_chunk_sql and last_chunk_sql != "nan":
+                from_matches = re.findall(
+                    r'\b(?:FROM|JOIN)\s+([A-Za-z_][A-Za-z0-9_]*)',
+                    last_chunk_sql,
+                    re.IGNORECASE
+                )
+                seen_src = set()
+                for src in from_matches:
+                    if src.lower() not in seen_src:
+                        seen_src.add(src.lower())
+                        last_chunk_sources.append(src)
+
+            return jsonify({
+                "success": True,
+                "sql_info": sql_info_records,
+                "mapping_info": mapping_records,
+                "source_tables": source_tables_list,
+                "output_columns": output_columns,
+                "last_chunk_sql": last_chunk_sql,
+                "last_chunk_sources": last_chunk_sources,
+            }), 200
+
+        if parent_artifact_id:
+            canonical_parent_ref = parent_source_ref.upper()
+            parent_artifact = session.artifacts[parent_artifact_id]
+            matching_dependency = any(
+                dep.source_ref_canonical.upper() == canonical_parent_ref
+                for dep in parent_artifact.dependencies
+            )
+            if not matching_dependency:
+                return jsonify({"error": "Parent source reference was not found on the parent artifact"}), 400
+
+        # Auto-resolve links with existing artifacts
+        all_artifacts = list(session.artifacts.values()) + [artifact]
+        proposed_links = auto_resolve_links(all_artifacts)
+
+        # Add artifact to session
+        session.artifacts[artifact.artifact_id] = artifact
+
+        # Merge heuristic links, excluding the dependency explicitly resolved below
+        for link in proposed_links:
+            if (
+                parent_artifact_id
+                and link.consumer_artifact_id == parent_artifact_id
+                and link.source_ref_canonical == parent_source_ref.upper()
+            ):
+                continue
+            existing = [l for l in session.dependency_links
+                        if l.consumer_artifact_id == link.consumer_artifact_id
+                        and l.source_ref_canonical == link.source_ref_canonical]
+            if not existing:
+                session.dependency_links.append(link)
+
+        if parent_artifact_id:
+            canonical_parent_ref = parent_source_ref.upper()
+            session.dependency_links = [
+                link for link in session.dependency_links
+                if not (
+                    link.consumer_artifact_id == parent_artifact_id
+                    and link.source_ref_canonical.upper() == canonical_parent_ref
+                )
+            ]
+            session.dependency_links.append(DependencyLink(
+                consumer_artifact_id=parent_artifact_id,
+                source_ref_canonical=canonical_parent_ref,
+                resolution="uploaded_cv",
+                producer_artifact_id=artifact.artifact_id,
+            ))
+
+        # Add mappings from this artifact
+        for m in artifact.mapping_rows:
+            if m.artifact_id is None:
+                m.artifact_id = artifact.artifact_id
+        session.global_mappings.extend(artifact.mapping_rows)
+
+        store = get_session_store()
+        store.update_session(session)
+
+        # Enrich sql_info records with source_table_name so frontend can display the tree
+        import ast, re
+        for row in sql_info_records:
+            mapping_fields_raw = str(row.get("SourceTable_mapping_fields", "")).strip()
+            if mapping_fields_raw and mapping_fields_raw != "nan":
+                try:
+                    mapping_fields = ast.literal_eval(mapping_fields_raw)
+                    if isinstance(mapping_fields, dict) and mapping_fields:
+                        row["source_table_name"] = list(mapping_fields.keys())[0]
+                        continue
+                except (ValueError, SyntaxError):
+                    pass
+            # Fallback: extract first table from SQL FROM clause
+            sql_content = str(row.get("Chunk SQL Primary Optimized Base", ""))
+            from_matches = re.findall(
+                r'\bFROM\s+([a-zA-Z_][a-zA-Z0-9_]*)',
+                sql_content, re.IGNORECASE
+            )
+            row["source_table_name"] = from_matches[0].lower() if from_matches else ""
+
+        return jsonify({
+            "success": True,
+            "artifact": artifact.to_dict(),
+            "session": session.to_dict(),
+            "sql_info": sql_info_records,
+            "mapping_info": mapping_records
+        }), 200
+
+    except Exception as e:
+        logger.error(f"nested_add_cv_from_xlsx error: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
+
+
+def _infer_object_kind(ref: str) -> str:
+    """Infer whether a reference is a table or calculation view."""
+    upper = ref.upper()
+    cv_indicators = ["_CV", "_cv", "CALC_VIEW", ".cv", "/cv/"]
+    table_indicators = ["_T", "_tbl", "TABLE", ".table", "/tab/"]
+    for indicator in cv_indicators:
+        if indicator in upper:
+            return "calculation_view"
+    for indicator in table_indicators:
+        if indicator in upper:
+            return "physical_table"
+    return "unknown"
 
 
 # PATCH /api/nested/sessions/<session_id>/cvs/<artifact_id> — Update CV
@@ -1410,6 +1780,7 @@ def nested_get_task(task_id):
         "progress": task.progress,
         "message": task.message,
         "result_url": task.result_url,
+        "result_content": task.result_content,  # In-memory content for editor display
         "diagnostics": [d.to_dict() if hasattr(d, 'to_dict') else d for d in task.diagnostics],
     }), 200
 
@@ -1419,37 +1790,30 @@ def nested_get_task(task_id):
 def nested_download(task_id):
     if request.method == 'OPTIONS':
         return '', 200
-    import os as _os
-    from dotenv import load_dotenv
-    load_dotenv()
-    output_dir = _os.environ.get("OUTPUT_DIR", "/tmp/h2s_output")
-    filename = f"nested_cv_{task_id[:8]}"
-    logger.info(f"[DOWNLOAD] task_id={task_id} output_dir={output_dir}")
-    for ext in ('.pyspark', '.sql'):
-        fp = _os.path.join(output_dir, filename + ext)
-        logger.info(f"[DOWNLOAD] checking {fp} exists={_os.path.exists(fp)}")
     store = get_session_store()
     task = store.get_task(task_id)
-    logger.info(f"[DOWNLOAD] task={'found' if task else 'NOT FOUND'} status={task.status if task else None}")
     if not task:
         return jsonify({"error": "Task not found"}), 404
     if task.status != "COMPLETED":
         return jsonify({"error": "Task not completed"}), 400
+    if not task.result_content:
+        return jsonify({"error": "Result content not found"}), 404
 
-    filepath = get_generation_result(task)
-    logger.info(f"[DOWNLOAD] get_generation_result returned filepath={filepath}")
-    if not filepath or not _os.path.exists(filepath):
-        logger.info(f"[DOWNLOAD] filepath not found on disk")
-        return jsonify({"error": "Result file not found"}), 404
-
-    filename = os.path.basename(filepath)
-    ext = os.path.splitext(filename)[1]
-    mimetype = 'text/x-sql' if ext == '.sql' else 'text/plain'
+    # Determine extension and mimetype from task.output_format
+    content = task.result_content
+    if task.output_format == OutputFormat.PYSPARK.value:
+        ext = ".pyspark"
+        mimetype = 'text/plain'
+        download_name = f"nested_cv_{task_id[:8]}.pyspark"
+    else:
+        ext = ".sql"
+        mimetype = 'text/x-sql'
+        download_name = f"nested_cv_{task_id[:8]}.sql"
 
     return send_file(
-        filepath,
+        io.BytesIO(content.encode('utf-8')),
         as_attachment=True,
-        download_name=filename,
+        download_name=download_name,
         mimetype=mimetype,
     )
 

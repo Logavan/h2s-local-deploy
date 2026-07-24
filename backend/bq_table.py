@@ -1,18 +1,18 @@
 from google.cloud import bigquery
-import os
-from google.cloud import bigquery
-import re, time, random
-import asyncio
-import concurrent.futures
-from typing import Optional
+from google.oauth2 import service_account
 from google.api_core.exceptions import GoogleAPICallError, RetryError, DeadlineExceeded
 import os
+import re
+import time
+import random
+import asyncio
+import concurrent.futures
 import json
-from google.cloud import bigquery
-from api_client import api_call, api_call_flash, api_call_async
 import logging
 import tenacity
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_result, retry_if_exception
+from typing import Optional, Dict, List
+from api_client import api_call, api_call_flash, api_call_async
 
 # Remove all handlers from the root logger first to prevent duplicate messages
 for handler in logging.root.handlers[:]:
@@ -46,7 +46,6 @@ project_id = "dev-hanacv2sql"
 # authorized_session.mount("https://", adapter)
 # client = bigquery.Client(project=project_id, _http=authorized_session)
 
-from google.oauth2 import service_account
 
 credentials = service_account.Credentials.from_service_account_file(
     bq_json,
@@ -105,11 +104,6 @@ def delete_dataset(dataset_name, delete_contents=True):
     except Exception as e:
         logger.info(f"Error deleting dataset {dataset_id}: {e}")
 
-import os
-import re
-import json
-from typing import Dict, List, Tuple
-from google.cloud import bigquery
 
 # -------------------------------------------------------------------
 # Helpers
@@ -372,12 +366,6 @@ def create_all_tables_from_load_data(load_data, dataset_name, **kwargs):
 
 
 
-import re
-import time
-import random
-from typing import Optional
-from google.cloud import bigquery
-from google.api_core.exceptions import GoogleAPICallError, RetryError, DeadlineExceeded
 
 
 def run_bigquery_sql(

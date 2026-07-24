@@ -1,5 +1,6 @@
 """
 Configuration module for environment variables and application settings.
+Enterprise edition — no Supabase, no payments.
 """
 import os
 from datetime import timedelta
@@ -12,30 +13,22 @@ def load_environment():
     """Load environment variables based on deployment context."""
     if not IS_CLOUD_RUN:
         from dotenv import load_dotenv
-        dotenv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env.local')
+        dotenv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
         load_dotenv(dotenv_path)
 
-# Supabase Configuration
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+# Gemini Model Configuration — single model, used by both REST and SDK paths
+# Change at runtime via environment variable to switch models instantly
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite").strip()
 
-# API Keys
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
-DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL")
-
-# Payment Configuration
-PHONEPE_WEBHOOK_URL = os.getenv("PHONEPE_WEBHOOK_URL")
-PAYPAL_WEBHOOK_URL = os.getenv("PAYPAL_WEBHOOK_URL")
-PARENT_WEBSITE_PAYMENT_API = os.getenv(
-    "PARENT_WEBSITE_PAYMENT_API",
-    "https://codeskit.in/hanacv2sql/phonepe/index.php"
-)
 
 # Conversion Settings
 STALE_THRESHOLD_SECONDS = 3600  # 60 minutes
 CONVERSION_TIMEOUT_SECONDS = 3600  # 60 minutes
 
-
 # Initialize on module import
 load_environment()
+
+# Gemini API Key — required
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
+if not GEMINI_API_KEY:
+    raise ValueError("GEMINI_API_KEY environment variable is required")

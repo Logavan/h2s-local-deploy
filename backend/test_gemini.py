@@ -12,13 +12,17 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env'))
 
 from api_client import api_call, api_call_flash
+from config.settings import GEMINI_MODEL
 
 def test_gemini():
     test_prompt = "Write a simple SELECT statement that casts a column named 'user_id' as STRING and uses IFNULL to replace nulls with 'unknown'. Output only raw SQL."
 
-    # Test 1: Gemini via REST (gemini-2.5-flash-lite) - used in file_processor for main conversion
+    print(f"Active model: {GEMINI_MODEL}")
+    print()
+
+    # Test 1: Gemini via REST
     print("=" * 60)
-    print("TEST 1: api_call('Gemini', ...) — REST path (gemini-2.5-flash-lite)")
+    print(f"TEST 1: api_call('Gemini', ...) — using {GEMINI_MODEL}")
     print("=" * 60)
     key = os.getenv("GEMINI_API_KEY")
     print(f"GEMINI_API_KEY loaded: {'YES' if key else 'NO'}")
@@ -37,12 +41,12 @@ def test_gemini():
 
     print()
 
-    # Test 2: gemini-3.1-flash-lite-preview via genai.Client SDK path
+    # Test 2: Gemini via genai.Client SDK path (uses GEMINI_MODEL)
     print("=" * 60)
-    print("TEST 2: api_call('gemini-3.1-flash-lite-preview', ...) — SDK path")
+    print(f"TEST 2: api_call('gemini-2.5-flash-lite', ...) — using {GEMINI_MODEL}")
     print("=" * 60)
     try:
-        result2 = api_call('gemini-3.1-flash-lite-preview', test_prompt, task_type='sql', target='bigquery')
+        result2 = api_call('gemini-2.5-flash-lite', test_prompt, task_type='sql', target='bigquery')
         if result2:
             print(f"[PASS] SUCCESS\nResponse:\n{result2[:500]}")
         else:

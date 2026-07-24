@@ -561,6 +561,7 @@ export function BulkFileUploadSection({
           animation: bounce 1s ease-in-out infinite;
         }
 
+        
         .animate-pulse {
           animation: pulse 2s ease-in-out infinite;
         }

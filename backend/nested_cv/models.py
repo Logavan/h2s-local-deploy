@@ -122,6 +122,7 @@ class CvArtifact:
     output_schema: list
     mapping_rows: list
     warnings: list
+    sql_info_raw: list = field(default_factory=list)  # Raw sql_info list for reuse by generate_sql_from_mapping
 
     def to_dict(self):
         return {
@@ -137,6 +138,7 @@ class CvArtifact:
             "output_schema": [o.to_dict() if hasattr(o, 'to_dict') else o for o in self.output_schema],
             "mapping_rows": [m.to_dict() if hasattr(m, 'to_dict') else m for m in self.mapping_rows],
             "warnings": [w.to_dict() if hasattr(w, 'to_dict') else w for w in self.warnings],
+            "sql_info_raw": self.sql_info_raw,
         }
 
     @classmethod
@@ -154,6 +156,7 @@ class CvArtifact:
             output_schema=[OutputColumn(**col) if isinstance(col, dict) else col for col in d.get("output_schema", [])],
             mapping_rows=[MappingEntry(**m) if isinstance(m, dict) else m for m in d.get("mapping_rows", [])],
             warnings=[Diagnostic(**w) if isinstance(w, dict) else w for w in d.get("warnings", [])],
+            sql_info_raw=d.get("sql_info_raw", []),
         )
 
 
@@ -241,6 +244,8 @@ class NestedTask:
     progress: int
     message: str
     result_url: Optional[str] = None
+    result_content: Optional[str] = None  # In-memory SQL/PySpark content — no OUTPUT_DIR
+    output_format: Optional[str] = None  # "sql" or "pyspark" — set at generation time
     diagnostics: list = field(default_factory=list)
     created_at: str = ""
     updated_at: str = ""
@@ -259,6 +264,8 @@ class NestedTask:
             "progress": self.progress,
             "message": self.message,
             "result_url": self.result_url,
+            "result_content": self.result_content,  # In-memory content for editor display
+            "output_format": self.output_format,  # "sql" or "pyspark"
             "diagnostics": [d.to_dict() if hasattr(d, 'to_dict') else d for d in self.diagnostics],
             "created_at": self.created_at,
             "updated_at": self.updated_at,

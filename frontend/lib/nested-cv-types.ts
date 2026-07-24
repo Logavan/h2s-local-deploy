@@ -118,7 +118,7 @@ export interface CreateSessionRequest {
 
 export interface CreateSessionResponse {
   success: boolean
-  session_id?: string
+  session?: NestedSession
   error?: string
 }
 
@@ -168,5 +168,7 @@ export interface TaskStatusResponse {
   progress: number
   message: string
   result_url?: string
+  result_content?: string
+  output_format?: OutputFormat
   diagnostics: Diagnostic[]
 }

@@ -24,6 +24,7 @@ import Image from "next/image"
 import MappingEditorPopup from "./MappingEditorPopup"
 import SqlEditor from "./CodeEditor" // Import SqlEditor (renamed from CodeEditor)
 import NotebookRenderer from "./NotebookRenderer"
+import ConversionHistoryModal from "./ConversionHistoryModal" // Import ConversionHistoryModal for selecting previous mapping files
 import { Button } from "@/components/ui/button" // Import Button component
 import { useAuth } from "@/contexts/AuthContext"
 import { useRouter } from "next/navigation"
@@ -731,6 +732,13 @@ export default function MappingTool() {
           sqlContent={sqlContent}
           zipContents={xlsxContents}
           onSave={handleSaveMappings}
+        />
+
+        {/* Conversion History Modal - Select Mapping file from Previous conversions */}
+        <ConversionHistoryModal
+          isOpen={showHistoryModal}
+          onClose={() => setShowHistoryModal(false)}
+          onSelectFile={handleHistoryFileSelect}
         />
 
         {/* Display Generated SQL Section */}

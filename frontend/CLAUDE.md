@@ -1,124 +1,137 @@
-# Frontend
+# Frontend — Enterprise Edition
 
 ## Tech Stack
-- Next.js 16 App Router, TypeScript strict mode
-- Tailwind CSS for styling
-- Server Actions for mutations
+- **Next.js 16** App Router, TypeScript strict mode
+- **Tailwind CSS** + **Framer Motion**
+- **shadcn/ui** components + **Radix UI** primitives
+- **CodeMirror** — SQL/PySpark code editor
+- **D3.js** — Graphviz DOT graph rendering
+- **JSZip** — client-side ZIP handling for bulk downloads
 
-## Key Files
-```
-lib/
-  api.ts                # Backend API calls helper (fetchWithTimeout, etc.)
-  config.ts             # Environment config
-  conversions.ts        # Conversion utilities
+## Pages
 
-contexts/
-  AuthContext.tsx        # Auth state management
+| Route | File | Description |
+|-------|------|-------------|
+| `/` | `app/page.tsx` | Home — renders one of three tools via `TabSwitcher` |
+| `/how-to-use` | `app/how-to-use/page.tsx` | Static guide with FAQ schema |
 
-app/
-  actions/              # Server actions
-    conversion-actions.ts        # XML/SQL conversion
-    newsletter-actions.ts      # Newsletter signup
-  tools/
-    hana-converter/     # Main conversion page
-    sql-mapping/         # Column mapping page
+## Three Tools (Tab-Switched on Home Page)
 
-components/
-  Header.tsx              # Navigation bar
-  ConversionTool.tsx      # Main conversion UI (SINGLE + BULK)
-  FileUploadArea.tsx      # Drag & drop file upload
-  GraphvizViewer.tsx      # HANA dependency graph (SVG)
-  account/
-    ConversionHistory.tsx
-  conversion/
-    FileUploadSection.tsx
-    BulkFileUploadSection.tsx  # ZIP file upload for bulk
-    ConversionStatus.tsx
-  ui/                     # shadcn/ui components
-```
+| Tab | Component | Purpose |
+|-----|-----------|---------|
+| `converter` | `ConversionTool.tsx` | HANA CV Converter — XML → SQL (single + bulk) |
+| `mapper` | `MappingTool.tsx` | SQL/PySpark Mapping Engine — XLSX → SQL |
+| `nested` | `NestedCVTool.tsx` | Nested CV Flattener — multi-CV → merged SQL/PySpark |
 
-## Conversion Modes
+Switch via URL param: `?tab=mapper` or `?tab=nested`.
 
-### Single File Mode
-- Upload one XML file
-- Immediate analysis and conversion
-- Progress via polling
+## Key Components
 
-### Bulk Mode
-- Upload ZIP file with multiple XML/TXT files
-- Analyze all files at once
-- Real-time Conversion Summary Dashboard
-- Download all results as single ZIP
+### HANA CV Converter (`ConversionTool.tsx`)
+- `conversion/FileUploadSection.tsx` — XML drag-and-drop upload
+- `conversion/BulkFileUploadSection.tsx` — ZIP upload + JSZip extraction
+- `conversion/ConversionDashboard.tsx` — bulk progress table
+- `conversion/ConversionSteps.tsx` — step indicator
+- `conversion/SuccessState.tsx` — single file success screen
+- `conversion/VisualizationSection.tsx` — Graphviz SVG + auto-download
+- `GraphvizViewer.tsx` — animated HANA dependency graph
 
-## API Functions (lib/api.ts)
+### SQL/PySpark Mapping Engine (`MappingTool.tsx`)
+- `MappingEditorPopup.tsx` — modal for editing table/column mappings
+- `ConversionHistoryModal.tsx` — browse previous conversions
+- `CodeEditor.tsx` — CodeMirror SQL editor
+- `NotebookRenderer.tsx` — `.ipynb` PySpark notebook renderer
 
-### Single File
+### Nested CV Flattener (`NestedCVTool.tsx`)
+- Platform selector (BigQuery, Snowflake, Databricks, Fabric, Redshift, Datasphere)
+- Format selector (SQL or PySpark)
+- CV JSON paste/drop area
+- Dependency graph validation
+- CodeMirror editor for generated output
+
+## API Functions (`lib/api.ts`)
+
+### HANA CV Converter
+
 ```typescript
 analyzeXmlFile(xmlContent, fileName, userEmail)
-// Returns: { success, node_count, complexity, conversion_type, session_id }
+// POST /api/analyze → { node_count, complexity, session_id, ... }
 
-startConversion(xmlContent, fileName, userEmail, conversionType, nodeCount)
-// Returns: { success, task_id, message }
+startConversion(xmlContent, fileName, userEmail, nodeCount?)
+// POST /api/start-conversion → { task_id }
 
 getConversionStatus(taskId)
-// Returns: { status, progress, message, result?: { sql_url, data_mapping_url } }
+// GET /api/conversion-status/{taskId} → { status, progress, message, result? }
 
 downloadConvertedFile(sessionId, fileName)
-// Triggers browser download
-```
+// GET /api/download/{sessionId}?type=sql → browser download
 
-### Bulk Operations
-```typescript
 analyzeBulkZip(zipFile, userEmail)
-// Returns: { success, files[], total_nodes }
+// POST /api/bulk-analyze → { files[], total_nodes }
 
 startBulkConversion(files, userEmail)
-// Returns: { success, bulk_task_id, message }
-// Timeout: 120 seconds
+// POST /api/bulk-conversion → { bulk_task_id }
 
-getBulkConversionStatus(taskId)
-// Returns: { status, progress, total_files, completed_files, failed_files, results[] }
+getBulkConversionStatus(bulkTaskId)
+// GET /api/bulk-status/{bulkTaskId} → { status, progress, completed_files, failed_files, results[] }
 
-downloadBulkResult(taskId)
-// Triggers browser download with timestamped filename
+downloadBulkResult(bulkTaskId)
+// GET /api/bulk-download/{bulkTaskId} → browser download
+
+listPreviousConversions()
+// GET /api/previous-conversions → { files[] }
 ```
 
-### Utility
+### Mapping Engine
+
 ```typescript
-checkBackendHealth()
-// Returns: { status: "alive" | "down" }
+processXlsxFileForMapping(xlsxFile, platform)
+// POST /api/mapping/upload_and_generate_schema → { mappingSchema }
 
-checkConversionRunningStatus(userEmail)
-// Returns: { isRunning: boolean }
+applyMappingChanges(updatedMappings, fileName, platform, sessionId, format?)
+// POST /api/mapping/apply_changes_and_generate_output
+// → { cteSqlContent, tempTableSqlContent, pysparkNotebookContent, fileName }
 ```
 
-## Conversion Summary Dashboard
+### Nested CV Flattener
 
-Shown during bulk conversion polling:
+```typescript
+nestedCreateSession({ target_dialect, output_format })     // POST /api/nested/sessions
+nestedGetSession(sessionId)                               // GET /api/nested/sessions/{id}
+nestedDeleteSession(sessionId)                             // DELETE /api/nested/sessions/{id}
+nestedAddCv(sessionId, { file_content, file_name })       // POST /api/nested/sessions/{id}/cvs
+nestedUpdateCv(sessionId, artifactId, { emission_mode, target_view_name })  // PATCH
+nestedDeleteCv(sessionId, artifactId)                     // DELETE
+nestedResolveLinks(sessionId, links)                       // PUT /nested/sessions/{id}/links
+nestedUpdateMappings(sessionId, mappings)                  // PUT /nested/sessions/{id}/mappings
+nestedValidate(sessionId)                                 // POST /nested/sessions/{id}/validate
+nestedGenerate(sessionId)                                 // POST /nested/sessions/{id}/generate
+nestedGetTaskStatus(taskId)                              // GET /api/nested/tasks/{taskId}
+nestedDownloadResult(taskId)                              // GET /api/nested/tasks/{taskId}/download
+```
+
+## State Management
+
+- **EnterpriseContext** (`contexts/EnterpriseContext.tsx`) — always authenticated, no auth UI
+- All tools use local `useState`/`useCallback` — no Redux/Zustand
+- `ENTERPRISE_EMAIL = "enterprise@local.deploy"` hardcoded for all API calls
+
+## Environment Variables
 
 ```
-┌─────────────────────────────────────┐
-│ Conversion Summary                  │
-├─────────────────────────────────────┤
-│ Total Files    │ 50                 │
-│ Processing     │ 11                 │
-│ Completed      │ 37  ✅             │
-│ Failed         │ 2   ❌             │
-├─────────────────────────────────────┤
-│ ████████████████████░░░░░ 78%      │
-├─────────────────────────────────────┤
-│ file1.xml ........... Done          │
-│ file2.xml ........... Processing    │
-│ file3.xml ........... Failed        │
-│   → Invalid XML structure           │
-│ ...                                │
-└─────────────────────────────────────┘
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8080   # set in frontend/.env.local
 ```
+
+Next.js rewrites `/api/:path*` → `${NEXT_PUBLIC_API_BASE_URL}/api/:path*`.
+
+## Testing
+- **Do NOT** place test files inside `frontend/` or `backend/` — they break Docker builds
+- All Playwright E2E tests go in `visual-testing/` at project root
+- `visual-testing/nested-cv/test_nested_cv_api.py` — Nested CV API tests
 
 ## Error Handling
 
-### Frontend Error Filter
-Only validation-like errors pass through. Internal errors show generic message:
+Only user-friendly errors pass through. Internal tracebacks are filtered:
 
 **Passed through:**
 - "Root View:ColumnView element not found"
@@ -126,46 +139,15 @@ Only validation-like errors pass through. Internal errors show generic message:
 - "Invalid XML structure"
 
 **Filtered (generic shown):**
-- Python tracebacks
-- MemoryError, RecursionError
-- `[WinError ...]`, socket errors
-- Stack traces
+- Python tracebacks, `RecursionError`, `MemoryError`
+- `[WinError ...]`, socket errors, stack traces
 
-### Timeout Configuration
-| Operation | Timeout |
-|-----------|---------|
-| Health check | 10s |
-| Single analyze/convert | 30s |
-| Bulk analyze | 120s |
-| Bulk start conversion | 120s |
-| Status polling | 5s interval, 720 attempts (60 min max) |
+## Key Libraries
 
-## Key Components
-
-### ConversionTool.tsx
-Main component handling both single and bulk modes:
-
-**State:**
-- `conversionMode: "single" | "bulk"`
-- `processingState: "idle" | "analyzing" | "checking-limits" | "initiating-conversion" | "polling-status" | "success" | "error"`
-- `bulkFiles: BulkFileInfo[]`
-- `bulkTaskId: string | null`
-- `bulkProgress: { completed, total, failed }`
-
-**Key Functions:**
-- `handleProcessClick()` - Single file conversion
-- `handleStartBulkConversion()` - Bulk conversion start
-- `pollConversionStatus()` - Poll single file status
-- `pollBulkConversionStatus()` - Poll bulk status
-- `handleDownload()` - Download (single or bulk based on mode)
-
-## Environment Variables
-```
-NEXT_PUBLIC_API_BASE_URL      # Backend API (http://localhost:8080 locally)
-```
-
-## Testing
-- **DO NOT** place test files inside `frontend/` or `backend/` folders
-- All frontend/backend testing goes in `visual-testing/` at project root
-- This avoids Docker build issues (test files shouldn't be in Docker context)
-- Use `visual-testing/tests/bulk-conversion.spec.ts` for Playwright E2E tests
+| File | Purpose |
+|------|---------|
+| `lib/api.ts` | All backend API calls |
+| `lib/config.ts` | `NEXT_PUBLIC_API_BASE_URL` with fallback |
+| `lib/nested-cv-types.ts` | All TypeScript types for NestedCVTool |
+| `hooks/useLineCounter.ts` | Web Worker-based XML line counter |
+| `lib/analytics.ts` | GA4 event tracking |

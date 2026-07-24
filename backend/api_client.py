@@ -9,11 +9,14 @@ from google import genai
 from google.genai import types
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception, retry_if_result
 
+from config.settings import GEMINI_API_KEY, GEMINI_MODEL
+
 # --- Global Clients for Connection Pooling ---
 # These will be initialized once and reused across requests.
 _httpx_async_clients = {}
 _genai_async_client = None
-_gcp_region = os.getenv("GCP_REGION", "us-central1") # Standardize on a region
+_genai_sync_client = None
+_gcp_region = os.getenv("GCP_REGION", "us-central1")
 
 def get_httpx_async_client():
     try:
@@ -65,12 +68,10 @@ def get_genai_async_client():
     return _genai_async_client
 
 def get_genai_sync_client():
-    global _genai_async_client
-    if _genai_async_client is None:
-        GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-        if GEMINI_API_KEY:
-            _genai_async_client = genai.Client(api_key=GEMINI_API_KEY, http_options={'api_version': 'v1beta'})
-    return _genai_async_client
+    global _genai_sync_client
+    if _genai_sync_client is None:
+        _genai_sync_client = genai.Client(api_key=GEMINI_API_KEY, http_options={'api_version': 'v1beta'})
+    return _genai_sync_client
 
 # Cloud Run sets K_SERVICE env variable automatically
 if not os.getenv("K_SERVICE"):
@@ -80,12 +81,6 @@ if not os.getenv("K_SERVICE"):
 else:
     # Running on Cloud Run, do NOT load .env
     pass
-
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-# DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
-# DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL")
-DEEPSEEK_API_KEY = None
-DEEPSEEK_BASE_URL = None
 
 # ============================================================================
 # Target-Specific SQL System Instructions
@@ -329,7 +324,7 @@ def api_call(model_name, full_prompt, task_type='sql', target=None):
     Make an API call to the specified model.
     
     Args:
-        model_name: 'Gemini', 'Deepseek', or 'gemini-3.1-flash-lite-preview'
+        model_name: 'Gemini' or 'gemini-2.5-flash-lite'
         full_prompt: The user prompt
         task_type: 'sql' or 'datatype'
         target: Target platform (bigquery, snowflake, databricks, redshift, synapse, hana, datasphere)
@@ -340,30 +335,14 @@ def api_call(model_name, full_prompt, task_type='sql', target=None):
         system_instruction_to_use = get_datatype_instruction(target)
 
     try:
-        if model_name == 'Deepseek':
-            if not DEEPSEEK_API_KEY or not DEEPSEEK_BASE_URL:
-                print("Error: DeepSeek API keys not configured. Cannot make DeepSeek API call.")
-                return None
-            
-            # Using global client with pooling
-            response = client.chat.completions.create(
-                model="deepseek-chat",
-                messages=[
-                    {"role": "system", "content": system_instruction_to_use},
-                    {"role": "user", "content": full_prompt},
-                ],
-                stream=False,
-            )
-            return response.choices[0].message.content
-
-        elif model_name == 'Gemini':
+        if model_name == 'Gemini':
             if not GEMINI_API_KEY:
                 print("Error: Gemini API key not configured. Cannot make Gemini API call.")
                 return None
             
             # OPTIMIZATION: Use optimized REST call with connection pooling
             # This replaces the unoptimized genai.Client usage
-            model_id = "gemini-2.5-flash-lite" 
+            model_id = GEMINI_MODEL
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_id}:generateContent"
             params = {"key": GEMINI_API_KEY}
             
@@ -405,14 +384,14 @@ def api_call(model_name, full_prompt, task_type='sql', target=None):
                 print(f"Gemini Sync API error: {e}")
                 return None
 
-        elif model_name == 'gemini-3.1-flash-lite-preview':
+        elif model_name == 'gemini-2.5-flash-lite':
             genai_client = get_genai_sync_client()
             if not genai_client:
                 print("Error: Gemini client not configured.")
                 return None
             try:
                 response = genai_client.models.generate_content(
-                    model="gemini-3.1-flash-lite-preview",
+                    model=GEMINI_MODEL,
                     config=types.GenerateContentConfig(
                         system_instruction=system_instruction_to_use,
                         temperature=0.1
@@ -421,7 +400,7 @@ def api_call(model_name, full_prompt, task_type='sql', target=None):
                 )
                 return response.text
             except Exception as e:
-                print(f"Gemini 3.1 Flash Lite API error: {e}")
+                print(f"Gemini API error: {e}")
                 return None
 
         return None
@@ -431,91 +410,20 @@ def api_call(model_name, full_prompt, task_type='sql', target=None):
         print(f"Error during {model_name} API call: {str(e)}", flush=True)
         return None
 
-# Unified API Call Function for Flash Models
+# Thin wrapper — delegates to api_call
 def api_call_flash(model_name, full_prompt, task_type='sql', target=None):
-    if task_type == 'sql':
-        system_instruction_to_use = get_sql_instruction(target)
-    else:
-        system_instruction_to_use = get_datatype_instruction(target)
-
-    if model_name == 'Deepseek':
-        if not DEEPSEEK_API_KEY or not DEEPSEEK_BASE_URL:
-            print("Error: DeepSeek API keys not configured. Cannot make DeepSeek API call.")
-            return None
-        
-        response = client.chat.completions.create(
-            model="deepseek-chat",
-            messages=[
-                {"role": "system", "content": system_instruction_to_use},
-                {"role": "user", "content": full_prompt},
-            ],
-            stream=False,
-        )
-        return response.choices[0].message.content
-
-    elif model_name == 'Gemini':
-        # OPTIMIZATION: Replaced with optimized pooled REST call
-        return api_call('Gemini', full_prompt, task_type, target=target)
-
-    return None
+    return api_call(model_name, full_prompt, task_type, target=target)
 
 # Async version of api_call_flash
+# Thin wrapper — delegates to api_call_async
 async def api_call_flash_async(model_name, full_prompt, task_type='sql', target=None):
-    if task_type == 'sql':
-        system_instruction_to_use = get_sql_instruction(target)
-    else:
-        system_instruction_to_use = get_datatype_instruction(target)
-
-    if model_name == 'Deepseek':
-        if not DEEPSEEK_API_KEY or not DEEPSEEK_BASE_URL:
-            # print("Error: DeepSeek API keys not configured.")
-            return None
-        
-        # Use simple non-streaming async call (assuming OpenAI client supports it or we use httpx directly if needed)
-        # For now, if referencing 'client', ensure it is an AsyncOpenAI client or similar
-        # Since 'client' variable isn't clearly defined as async in this snippet, we might need a workaround or assume existence.
-        # However, typically Deepseek is less critical here. Let's fallback to standard api_call_async logic or implement if needed.
-        # Ideally:
-        # response = await async_client.chat.completions.create(...)
-        pass 
-
-    elif model_name == 'Gemini':
-        # OPTIMIZATION: Replaced with optimized pooled REST call
-        return await api_call_async('Gemini', full_prompt, task_type, target=target)
-
-    return None
+    return await api_call_async(model_name, full_prompt, task_type, target=target)
 
 
 
 
 
-# DeepSeek is disabled - using Gemini only
-# if not DEEPSEEK_API_KEY or not DEEPSEEK_BASE_URL:
-#     print("Warning: DEEPSEEK_API_KEY or DEEPSEEK_BASE_URL not found in environment variables. DeepSeek API calls may fail.")
 
-# Initialize client only if keys are present to avoid errors
-client = None
-# DeepSeek client disabled
-# if DEEPSEEK_API_KEY and DEEPSEEK_BASE_URL:
-#     client = OpenAI(
-#         api_key=DEEPSEEK_API_KEY,
-#         base_url=DEEPSEEK_BASE_URL,
-#         http_client=httpx.Client(
-#             verify=True,  # Enable SSL verification for production
-#             timeout=60.0,  # Set a default timeout for requests (e.g., 30 seconds)
-#             limits=httpx.Limits(max_connections=200, max_keepalive_connections=100) # Align with Cloud Run concurrency
-#         ),
-#     )
-# else:
-#     print("DeepSeek client not initialized due to missing API key or base URL.")
-
-
-import asyncio
-from openai import AsyncOpenAI, OpenAI
-import httpx
-
-# --- Load API Keys from environment variables ---
-# Best practice: store your keys in .env file or environment variables
 
 
 
@@ -526,7 +434,7 @@ async def api_call_async(model_name, full_prompt, task_type='sql', target=None):
     Calls the specified model API asynchronously.
     
     Args:
-        model_name: 'Gemini', 'Deepseek', or 'gemini-3.1-flash-lite-preview'
+        model_name: 'Gemini' or 'gemini-2.5-flash-lite'
         full_prompt: The user prompt
         task_type: 'sql' or 'datatype'
         target: Target platform (bigquery, snowflake, databricks, redshift, synapse, hana, datasphere)
@@ -536,40 +444,15 @@ async def api_call_async(model_name, full_prompt, task_type='sql', target=None):
     else:
         system_instruction_to_use = get_datatype_instruction(target)
 
-    if model_name == 'Deepseek':
-        if not DEEPSEEK_API_KEY or not DEEPSEEK_BASE_URL:
-            print("Error: DeepSeek API keys not configured.")
-            return None
-        
-        url = f"{DEEPSEEK_BASE_URL}/v1/chat/completions"
-        headers = {"Authorization": f"Bearer {DEEPSEEK_API_KEY}"}
-        payload = {
-            "model": "deepseek-chat",
-            "messages": [
-                {"role": "system", "content": system_instruction_to_use},
-                {"role": "user", "content": full_prompt}
-            ],
-            "stream": False
-        }
-        try:
-            client = get_httpx_async_client()
-            resp = await client.post(url, json=payload, headers=headers)
-            resp.raise_for_status()
-            data = resp.json()
-            return data["choices"][0]["message"]["content"]
-        except Exception as e:
-            print(f"Deepseek API error: {e}")
-            return None
 
-    elif model_name == 'Gemini':
+    if model_name == 'Gemini':
         if not GEMINI_API_KEY:
             print("Error: Gemini API key not configured.")
             return None
         
         try:
-            # OPTIMIZATION: Using the user's preferred model for accuracy
-            # gemini-2.5-flash-lite provides better correctness for this task
-            model_id = "gemini-2.5-flash-lite" 
+            # Model controlled via GEMINI_MODEL env var
+            model_id = GEMINI_MODEL
             
             # OPTIMIZATION: In Cloud Run, we prefer the Vertex AI endpoints if possible,
             # but if using API Key, stick to the standard endpoint but ensure HTTP/2
@@ -615,14 +498,14 @@ async def api_call_async(model_name, full_prompt, task_type='sql', target=None):
             print(f"Gemini API error (Region: {_gcp_region}): {e}")
             return None
 
-    elif model_name == 'gemini-3.1-flash-lite-preview':
+    elif model_name == 'gemini-2.5-flash-lite':
         genai_client = get_genai_async_client()
         if not genai_client:
             print("Error: Gemini client not configured.")
             return None
         try:
             response = await genai_client.aio.models.generate_content(
-                model="gemini-3.1-flash-lite-preview",
+                model=GEMINI_MODEL,
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction_to_use,
                     temperature=0.1
@@ -631,7 +514,7 @@ async def api_call_async(model_name, full_prompt, task_type='sql', target=None):
             )
             return response.text
         except Exception as e:
-            print(f"Gemini 3.1 Flash Lite API error: {e}")
+            print(f"Gemini API error: {e}")
             return None
 
     else:

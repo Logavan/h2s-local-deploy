@@ -26,12 +26,8 @@ services:
       - FLASK_ENV=production
       - OUTPUT_DIR=/data/outputs
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - GOOGLE_APPLICATION_CREDENTIALS=/data/gcp-key.json
-      - BQ_PROJECT_ID=${BQ_PROJECT_ID}
-      - GCP_REGION=${GCP_REGION:-us-central1}
     volumes:
       - ./data/outputs:/data/outputs
-      - ${GOOGLE_APPLICATION_CREDENTIALS:-./data/gcp-key-placeholder.json}:/data/gcp-key.json:ro
     networks:
       - hanacv2sql-network
     healthcheck:

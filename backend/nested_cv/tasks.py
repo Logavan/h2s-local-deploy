@@ -1,23 +1,15 @@
 # nested_cv/tasks.py
 # Async generation task lifecycle
 
+import asyncio
 import threading
-import os
-import uuid
-from datetime import datetime
-from typing import Optional
-from dotenv import load_dotenv
-
-# Ensure .env is loaded so background threads see OUTPUT_DIR
-load_dotenv()
-
 from .models import NestedTask, NestedSession, OutputFormat
 from .session_store import get_session_store
 from .sql_composer import compose_sql
 from .pyspark_composer import compose_pyspark
 
 
-def _run_generation(task_id: str, session_id: str):
+async def _run_generation(task_id: str, session_id: str):
     """Background thread worker for SQL/PySpark generation."""
     store = get_session_store()
     task = store.get_task(task_id)
@@ -33,7 +25,6 @@ def _run_generation(task_id: str, session_id: str):
     store.update_task(task)
 
     try:
-        # Collect artifacts and mappings
         artifacts = list(session.artifacts.values())
         links = session.dependency_links
         mappings = session.global_mappings
@@ -45,6 +36,61 @@ def _run_generation(task_id: str, session_id: str):
             store.update_task(task)
             return
 
+        # ── Single artifact: reuse Mapping Tool pipeline for exact parity ─────
+        if len(artifacts) == 1 and artifacts[0].sql_info_raw:
+            artifact = artifacts[0]
+            task.progress = 10
+            task.message = "Using Mapping Tool pipeline for single CV..."
+            store.update_task(task)
+
+            # Convert MappingEntry[] → MappingTool format dicts
+            mappings_list = [
+                {
+                    "sourceTable": m.source_ref_canonical,
+                    "sourceField": m.source_column_raw,
+                    "targetTable": m.target_table,
+                    "targetField": m.target_column,
+                }
+                for m in mappings
+                if m.artifact_id == artifact.artifact_id
+            ]
+
+            task.progress = 30
+            task.message = "Generating SQL via Mapping Tool engine..."
+            store.update_task(task)
+
+            # Call the same function as MappingTool
+            from mapping_sql_generator import generate_sql_from_mapping
+            result = await generate_sql_from_mapping(
+                artifact.sql_info_raw,
+                mappings_list,
+                session.target_dialect,
+                output_format=session.output_format,
+            )
+
+            if session.output_format == OutputFormat.PYSPARK.value:
+                # result is (notebook_json, "")
+                content = result[0] if result[0] else "# PySpark generation failed"
+            else:
+                # result is (cte_sql, temp_table_sql)
+                content = result[0] if result[0] else "-- SQL generation failed"
+
+            task.diagnostics = []
+            task.progress = 80
+            task.message = "Finalizing..."
+            store.update_task(task)
+
+            task.output_format = session.output_format
+            task.result_content = content
+            task.result_url = f"/api/nested/tasks/{task_id}/download"
+
+            task.progress = 100
+            task.status = "COMPLETED"
+            task.message = "Generation complete"
+            store.update_task(task)
+            return
+
+        # ── Multiple artifacts: use nested flattening pipeline ─────────────────
         task.progress = 20
         task.message = "Building dependency graph..."
         store.update_task(task)
@@ -53,36 +99,26 @@ def _run_generation(task_id: str, session_id: str):
         task.message = "Composing SQL..."
         store.update_task(task)
 
-        # Compose based on output format
         if session.output_format == OutputFormat.PYSPARK.value:
             lines, diags = compose_pyspark(artifacts, links, mappings)
             task.diagnostics = diags
             content = "\n".join(lines) if lines else "# No content generated"
-            ext = ".pyspark"
         else:
             stmts, diags = compose_sql(artifacts, links, mappings, session.target_dialect)
             task.diagnostics = diags
             content = "\n\n".join(stmts) if stmts else "-- No SQL generated"
-            ext = ".sql"
 
         task.progress = 80
-        task.message = "Writing output file..."
+        task.message = "Finalizing..."
         store.update_task(task)
 
-        # Write to output directory
-        output_dir = os.environ.get("OUTPUT_DIR", "/tmp/h2s_output")
-        os.makedirs(output_dir, exist_ok=True)
-
-        filename = f"nested_cv_{task_id[:8]}{ext}"
-        filepath = os.path.join(output_dir, filename)
-
-        with open(filepath, "w", encoding="utf-8") as f:
-            f.write(content)
+        task.output_format = session.output_format
+        task.result_content = content
+        task.result_url = f"/api/nested/tasks/{task_id}/download"
 
         task.progress = 100
         task.status = "COMPLETED"
         task.message = "Generation complete"
-        task.result_url = f"/api/nested/tasks/{task_id}/download"
         store.update_task(task)
 
     except Exception as e:
@@ -96,35 +132,16 @@ def start_generation_task(session: NestedSession) -> NestedTask:
     """Create and start an async generation task for a session."""
     store = get_session_store()
 
-    # Check if there's already a running task for this session
-    # (idempotency)
-    # For now, just create a new one
     task = store.create_task(session.session_id)
     task.status = "PENDING"
     task.message = "Task queued"
     store.update_task(task)
 
-    # Start background thread
+    # Start background thread (uses asyncio internally)
     thread = threading.Thread(
-        target=_run_generation,
-        args=(task.task_id, session.session_id),
+        target=lambda: asyncio.run(_run_generation(task.task_id, session.session_id)),
         daemon=True,
     )
     thread.start()
 
     return task
-
-
-def get_generation_result(task: NestedTask) -> Optional[str]:
-    """Get the file path for a completed task."""
-    if task.status != "COMPLETED":
-        return None
-
-    output_dir = os.environ.get("OUTPUT_DIR", "/tmp/h2s_output")
-    filename = f"nested_cv_{task.task_id[:8]}"
-    # Check both .sql and .pyspark extensions
-    for ext in (".pyspark", ".sql"):
-        filepath = os.path.join(output_dir, filename + ext)
-        if os.path.exists(filepath):
-            return filepath
-    return None

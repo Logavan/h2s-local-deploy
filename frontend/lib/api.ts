@@ -1,7 +1,6 @@
 // lib/api.ts
 
 
-
 // Dynamic API URL based on environment variables
 import { config } from "./config"
 
@@ -9,8 +8,28 @@ const getApiBaseUrl = (): string => {
   return config.api.baseUrl!
 }
 
-// Enhanced fetch with timeout and better error handling
-async function fetchWithTimeout(url: string, options: RequestInit = {}, timeout = 30000): Promise<Response> {
+// Health check to verify backend is reachable
+export async function checkBackendHealth(): Promise<boolean> {
+  const apiUrl = getApiBaseUrl()
+  try {
+    const response = await fetch(`${apiUrl}/health`, {
+      method: 'GET',
+      signal: AbortSignal.timeout(5000)
+    })
+    return response.ok
+  } catch {
+    return false
+  }
+}
+
+// Enhanced fetch with timeout, retry logic, and better error handling
+async function fetchWithTimeout(
+  url: string, 
+  options: RequestInit = {}, 
+  timeout = 30000,
+  retries = 3,
+  retryDelay = 1000
+): Promise<Response> {
   const controller = new AbortController()
   const id = setTimeout(() => controller.abort("Request timed out"), timeout)
 
@@ -19,25 +38,45 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeout 
     signal: controller.signal,
   }
 
-  try {
-    const response = await fetch(url, fetchOptions)
-    clearTimeout(id)
-    return response
-  } catch (error) {
-    clearTimeout(id)
-    console.error(`Network error fetching ${url}:`, error)
+  let lastError: Error | null = null
 
-    // Enhance error message based on type
-    if (error instanceof TypeError && error.message === "Failed to fetch") {
-      throw new Error(`Unable to connect to the server. Please try later.`)
-    } else if (error instanceof DOMException && error.name === "AbortError") {
-      // DOMException may have a reason property in some environments
-      const reason = (error as DOMException & { reason?: string }).reason || `Request timed out after ${timeout}ms`
-      throw new Error(reason)
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      if (attempt > 0) {
+        console.log(`Retry attempt ${attempt}/${retries} for ${url}`)
+        // Exponential backoff: 1s, 2s, 4s
+        await new Promise(resolve => setTimeout(resolve, retryDelay * Math.pow(2, attempt - 1)))
+      }
+
+      const response = await fetch(url, fetchOptions)
+      clearTimeout(id)
+      return response
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error))
+      console.warn(`Fetch attempt ${attempt + 1} failed for ${url}:`, lastError.message)
+
+      // Don't retry on certain errors
+      if (error instanceof DOMException && error.name === "AbortError") {
+        clearTimeout(id)
+        throw new Error(`Request timed out after ${timeout}ms`)
+      }
+
+      // Last attempt failed
+      if (attempt === retries) {
+        clearTimeout(id)
+      }
     }
-
-    throw error
   }
+
+  clearTimeout(id)
+  console.error(`All ${retries + 1} attempts failed for ${url}`)
+
+  // Enhance error message based on type
+  if (lastError instanceof TypeError && lastError.message === "Failed to fetch") {
+    throw new Error(`Unable to connect to the server. Please try later.`)
+  }
+
+  throw lastError || new Error(`Failed to fetch ${url} after ${retries + 1} attempts`)
 }
 
 async function handleResponse<T>(response: Response): Promise<T> {
@@ -104,19 +143,6 @@ async function handleResponse<T>(response: Response): Promise<T> {
   } catch (e) {
     console.error("Failed to parse JSON response:", e)
     throw new Error("Invalid response format from server")
-  }
-}
-
-// Conversion-related API functions
-export async function checkBackendHealth(): Promise<{ status: "alive" | "down" }> {
-  try {
-    const apiUrl = getApiBaseUrl()
-    const response = await fetchWithTimeout(`${apiUrl}/health`, {}, 10000)
-    const isOk = response.ok
-    return { status: isOk ? "alive" : "down" }
-  } catch (error) {
-    console.error("Backend health check failed:", error)
-    return { status: "down" }
   }
 }
 
@@ -799,6 +825,59 @@ export async function nestedAddCv(
   } catch (error) {
     console.error("Failed to add CV:", error)
     return { success: false, error: error instanceof Error ? error.message : "Failed to add CV" }
+  }
+}
+
+export interface SourceTableRow {
+  source_table_name: string
+  source_field?: string
+  target_table?: string
+}
+
+export async function nestedAddCvFromXlsx(
+  sessionId: string,
+  xlsxFile: File,
+  parentSourceRef?: string,
+  parentArtifactId?: string,
+  inspectOnly = false,
+  selectedSource?: string
+): Promise<{
+  success: boolean
+  artifact?: CvArtifact
+  session?: NestedSession
+  sql_info?: Record<string, string>[]
+  mapping_info?: Record<string, string>[]
+  source_tables?: SourceTableRow[]
+  output_columns?: string[]
+  last_chunk_sql?: string
+  last_chunk_sources?: string[]
+  error?: string
+}> {
+  try {
+    const formData = new FormData()
+    formData.append("xlsxFile", xlsxFile)
+    if (parentSourceRef) {
+      formData.append("parentSourceRef", parentSourceRef)
+    }
+    if (parentArtifactId) {
+      formData.append("parentArtifactId", parentArtifactId)
+    }
+    if (inspectOnly) {
+      formData.append("inspectOnly", "true")
+    }
+    if (selectedSource) {
+      formData.append("selectedSource", selectedSource)
+    }
+
+    const response = await fetchWithTimeout(
+      `${apiUrl}/api/nested/sessions/${sessionId}/cvs/xlsx`,
+      { method: "POST", body: formData },
+      120000
+    )
+    return handleResponse(response)
+  } catch (error) {
+    console.error("Failed to add CV from XLSX:", error)
+    return { success: false, error: error instanceof Error ? error.message : "Failed to add CV from XLSX" }
   }
 }
 

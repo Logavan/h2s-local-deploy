@@ -55,6 +55,7 @@
     "@types/d3-graphviz": "^2.6.10",
     "@types/node-sql-parser": "^1.1.0",
     "@uiw/react-codemirror": "^4.25.5",
+    "@xyflow/react": "^12.11.2",
     "autoprefixer": "^10.4.27",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

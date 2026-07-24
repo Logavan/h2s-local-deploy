@@ -5,7 +5,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button"
 import { Loader2, FileSpreadsheet, Search } from "lucide-react"
 import { Input } from "@/components/ui/input"
-import { listPreviousConversations, downloadPreviousMapping, type PreviousConversion } from "@/lib/api"
+import * as apiModule from "@/lib/api"
+import type { PreviousConversion } from "@/lib/api"
 
 interface ConversionHistoryModalProps {
   isOpen: boolean
@@ -28,7 +29,7 @@ export default function ConversionHistoryModal({ isOpen, onClose, onSelectFile }
   const fetchConversions = async () => {
     try {
       setLoading(true)
-      const result = await listPreviousConversions()
+      const result = await apiModule.listPreviousConversations()
       if (result.success) {
         setConversions(result.conversions)
       } else {
@@ -46,7 +47,7 @@ export default function ConversionHistoryModal({ isOpen, onClose, onSelectFile }
     try {
       setDownloadingId(conversion.task_id)
 
-      const result = await downloadPreviousMapping(conversion.task_id)
+      const result = await apiModule.downloadPreviousMapping(conversion.task_id)
 
       if (result.type === "success") {
         const fileName = `${conversion.file_name}_mapping_sheet.xlsx`
