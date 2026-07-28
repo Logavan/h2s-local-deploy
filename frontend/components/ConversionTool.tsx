@@ -225,8 +225,8 @@ export default function ConversionTool({ onConversionSuccess }: ConversionToolPr
         try {
           let backendHealthy = false;
           try {
-            const backendStatus = await checkBackendHealth();
-            backendHealthy = backendStatus && backendStatus.status === "alive";
+            // checkBackendHealth() returns boolean (true when /health responds).
+            backendHealthy = await checkBackendHealth();
           } catch (healthError) {
             console.warn("Health check failed, will retry:", healthError);
             backendHealthy = false;
@@ -324,8 +324,9 @@ export default function ConversionTool({ onConversionSuccess }: ConversionToolPr
         }
 
         try {
-          const backendStatus = await checkBackendHealth()
-          if (!backendStatus || backendStatus.status !== "alive") {
+          // checkBackendHealth() returns boolean — drop the bogus .status check.
+          const backendHealthy = await checkBackendHealth()
+          if (!backendHealthy) {
             throw new Error("Backend server is unresponsive during bulk conversion.")
           }
 
@@ -580,15 +581,43 @@ export default function ConversionTool({ onConversionSuccess }: ConversionToolPr
 
 
   const handleReset = useCallback(() => {
-    if (window.confirm("Are you sure you want to reset?")) {
-      if (pollTimeoutRef.current) {
-        clearTimeout(pollTimeoutRef.current)
-      }
-      setShowVisualization(false);
-      setHasAutoDownloadedSvg(false);
-      window.location.reload()
+    if (!window.confirm("Are you sure you want to reset?")) return
+
+    // Cancel any in-flight polling before clearing state so a late callback
+    // can't overwrite our reset values.
+    if (pollTimeoutRef.current) {
+      clearTimeout(pollTimeoutRef.current)
+      pollTimeoutRef.current = null
     }
-  }, [pollTimeoutRef, setShowVisualization, setHasAutoDownloadedSvg])
+
+    // Reset conversion / file state. The mode selection (single vs bulk)
+    // is a user preference and is intentionally preserved.
+    setViewXmlFile(null)
+    setViewFileContent("")
+    setProcessingState("idle")
+    setIsProcessing(false)
+    setError(null)
+    setAnalysisResult(null)
+    setConvertedContent(null)
+    setBulkFiles([])
+    setBulkAnalysisComplete(false)
+    setBulkTaskId(null)
+    setBulkProgress({ completed: 0, total: 0, failed: 0 })
+    setLastConversionTime(0)
+
+    // Visualization state — both the data and the auto-download guard.
+    setVisualizationDotString(null)
+    setRenderedSvgContent(null)
+    setShowVisualization(false)
+    setHasAutoDownloadedSvg(false)
+    if (typeof sessionStorage !== "undefined") {
+      sessionStorage.removeItem("svgDownloadedForSession")
+    }
+
+    // Reset the file input by remounting via key bump so the same file can
+    // be re-uploaded without a manual page reload.
+    setFileInputKey((prev) => prev + 1)
+  }, [pollTimeoutRef])
 
   const handleDownload = useCallback(async () => {
     if (conversionMode === "bulk" && bulkTaskId) {

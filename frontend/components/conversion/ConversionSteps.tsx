@@ -46,7 +46,7 @@ export function ConversionSteps({ processingState }: ConversionStepsProps) {
             <StepItem label="Validating XML structure" isActive={_ps === "analyzing"} isDone={step1Done} />
             <StepItem label="Checking conversion limits" isActive={_ps === "checking-limits"} isDone={step2Done} />
             <StepItem label="Initiating conversion" isActive={_ps === "initiating-conversion"} isDone={step3Done} />
-            <StepItem label="Converting to SQL" isActive={_ps === "polling-status"} isDone={step4Done} />
+            <StepItem label="Generating Files" isActive={_ps === "polling-status"} isDone={step4Done} />
           </div>
         </motion.div>
       )}

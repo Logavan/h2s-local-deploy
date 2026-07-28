@@ -49,9 +49,6 @@ DEFAULT_PUBLIC_KEY_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "keys", "public.pem"
 )
 
-# Allow opting out of the gate for local dev with H2S_SKIP_LICENSE=1
-SKIP_ENV_VAR = "H2S_SKIP_LICENSE"
-
 
 @dataclass
 class VerificationResult:
@@ -99,19 +96,7 @@ def verify_or_raise(
                              production — the verifier rejects the app on
                              mismatch in the normal path.
     """
-    # 0. Operator escape hatch
-    if os.environ.get(SKIP_ENV_VAR) in {"1", "true", "yes"}:
-        logger.warning("License verification SKIPPED via %s", SKIP_ENV_VAR)
-        return VerificationResult(
-            license_id="SKIPPED",
-            customer="n/a",
-            expires_at="n/a",
-            days_remaining=-1,
-            machine_hash_short="n/a",
-            is_container=fp_mod.is_container(),
-        )
-
-    # 1. Locate + parse
+    # 0. Locate + parse
     real_path = license_path or find_license_file()
     license = load_license(real_path)
 
@@ -130,7 +115,9 @@ def verify_or_raise(
             f"({abs(license.days_remaining())} day(s) ago). Renew at vendor."
         )
 
-    # 4. Machine binding
+    # 4. Machine binding — every license is bound to a specific host. There is
+    #    no dev-mode bypass; local development uses a license signed for
+    #    the dev's own machine fingerprint (same code path as production).
     if not skip_machine_check:
         try:
             current = fp_mod.compute_fingerprint()
@@ -284,6 +271,5 @@ __all__ = [
     "verify_or_raise",
     "check_or_exit",
     "quick_status",
-    "SKIP_ENV_VAR",
     "DEFAULT_PUBLIC_KEY_PATH",
 ]

@@ -1,0 +1,1806 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<View:ColumnView xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:Param="http://www.sap.com/ndb/ViewModelParameter.ecore" xmlns:Type="http://www.sap.com/ndb/DataModelType.ecore" xmlns:View="http://www.sap.com/ndb/ViewModelView.ecore" schemaVersion="2.3" name="R_SD_SF_D_G_ENG_ORD_ZPS" dataCategory="CUBE" hierarchiesSQLEnabled="false" defaultNode="#//Star Join" clientDependent="false" applyPrivilegeType="NONE" translationRelevant="true">
+  <endUserTexts label="R_SD_SF_D_G_ENGINEERING_ORDERS ZPS"/>
+  <origin/>
+  <executionHints preferredEngine="SQL"/>
+  <viewNode xsi:type="View:Projection" name="P_DRAW">
+    <endUserTexts label=" "/>
+    <element name="DOKAR">
+      <endUserTexts label="DOKAR"/>
+      <inlineType primitiveType="NVARCHAR" length="3" precision="3" scale="0"/>
+    </element>
+    <element name="DOKNR">
+      <endUserTexts label="DOKNR"/>
+      <inlineType primitiveType="NVARCHAR" length="25" precision="25" scale="0"/>
+    </element>
+    <element name="DOKVR">
+      <endUserTexts label="DOKVR"/>
+      <inlineType primitiveType="NVARCHAR" length="2" precision="2" scale="0"/>
+    </element>
+    <element name="DOKTL">
+      <endUserTexts label="DOKTL"/>
+      <inlineType primitiveType="NVARCHAR" length="3" precision="3" scale="0"/>
+    </element>
+    <element name="DWNAM">
+      <inlineType primitiveType="NVARCHAR" length="12" precision="12" scale="0"/>
+    </element>
+    <element name="DOKST">
+      <inlineType primitiveType="NVARCHAR" length="2" precision="2" scale="0"/>
+    </element>
+    <element name="LABOR">
+      <inlineType primitiveType="NVARCHAR" length="3" precision="3" scale="0"/>
+    </element>
+    <element name="AENNR">
+      <inlineType primitiveType="NVARCHAR" length="12" precision="12" scale="0"/>
+    </element>
+    <element name="WERKA">
+      <inlineType primitiveType="NVARCHAR" length="4" precision="4" scale="0"/>
+    </element>
+    <element name="LOEDK">
+      <inlineType primitiveType="NVARCHAR" length="1" precision="1" scale="0"/>
+    </element>
+    <element name="CADKZ">
+      <inlineType primitiveType="NVARCHAR" length="1" precision="1" scale="0"/>
+    </element>
+    <element name="PRENR">
+      <inlineType primitiveType="NVARCHAR" length="25" precision="25" scale="0"/>
+    </element>
+    <element name="PREVR">
+      <inlineType primitiveType="NVARCHAR" length="2" precision="2" scale="0"/>
+    </element>
+    <element name="PRETL">
+      <inlineType primitiveType="NVARCHAR" length="3" precision="3" scale="0"/>
+    </element>
+    <element name="PREAR">
+      <inlineType primitiveType="NVARCHAR" length="3" precision="3" scale="0"/>
+    </element>
+    <element name="BEGRU">
+      <inlineType primitiveType="NVARCHAR" length="4" precision="4" scale="0"/>
+    </element>
+    <element name="FILEP">
+      <inlineType primitiveType="NVARCHAR" length="255" precision="255" scale="0"/>
+    </element>
+    <element name="DTTRG">
+      <inlineType primitiveType="NVARCHAR" length="10" precision="10" scale="0"/>
+    </element>
+    <element name="DAPPL">
+      <inlineType primitiveType="NVARCHAR" length="3" precision="3" scale="0"/>
+    </element>
+    <element name="FILEP1">
+      <inlineType primitiveType="NVARCHAR" length="255" precision="255" scale="0"/>
+    </element>
+    <element name="DTTRG1">
+      <inlineType primitiveType="NVARCHAR" length="10" precision="10" scale="0"/>
+    </element>
+    <element name="DAPPL1">
+      <inlineType primitiveType="NVARCHAR" length="3" precision="3" scale="0"/>
+    </element>
+    <element name="VRLDAT">
+      <inlineType primitiveType="NVARCHAR" length="8" precision="8" scale="0"/>
+    </element>
+    <element name="VPRIOR">
+      <inlineType primitiveType="NVARCHAR" length="1" precision="1" scale="0"/>
+    </element>
+    <element name="RES1">
+      <inlineType primitiveType="NVARCHAR" length="14" precision="14" scale="0"/>
+    </element>
+    <element name="RES2">
+      <inlineType primitiveType="NVARCHAR" length="14" precision="14" scale="0"/>
+    </element>
+    <element name="RES3">
+      <inlineType primitiveType="NVARCHAR" length="14" precision="14" scale="0"/>
+    </element>
+    <element name="RES4">
+      <inlineType primitiveType="NVARCHAR" length="14" precision="14" scale="0"/>
+    </element>
+    <element name="MRK_FILEP">
+      <inlineType primitiveType="NVARCHAR" length="255" precision="255" scale="0"/>
+    </element>
+    <element name="MRK_DTTRG">
+      <inlineType primitiveType="NVARCHAR" length="10" precision="10" scale="0"/>
+    </element>
+    <element name="MRK_FILEP1">
+      <inlineType primitiveType="NVARCHAR" length="255" precision="255" scale="0"/>
+    </element>
+    <element name="MRK_DTTRG1">
+      <inlineType primitiveType="NVARCHAR" length="10" precision="10" scale="0"/>
+    </element>
+    <element name="ADATUM">
+      <inlineType primitiveType="NVARCHAR" length="8" precision="8" scale="0"/>
+    </element>
+    <element name="DOKNR_VL">
+      <inlineType primitiveType="NVARCHAR" length="25" precision="25" scale="0"/>
+    </element>
+    <element name="DOKTL_VL">
+      <inlineType primitiveType="NVARCHAR" length="3" precision="3" scale="0"/>
+    </element>
+    <element name="DOKVR_VL">
+      <inlineType primitiveType="NVARCHAR" length="2" precision="2" scale="0"/>
+    </element>
+    <element name="FILELEN">
+      <inlineType primitiveType="NVARCHAR" length="12" precision="12" scale="0"/>
+    </element>
+    <element name="FILELEN1">
+      <inlineType primitiveType="NVARCHAR" length="12" precision="12" scale="0"/>
+    </element>
+    <element name="CM_RELEVANCE">
+      <inlineType primitiveType="NVARCHAR" length="1" precision="1" scale="0"/>
+    </element>
+    <element name="CM_FIXED">
+      <inlineType primitiveType="NVARCHAR" length="1" precision="1" scale="0"/>
+    </element>
+    <element name="ZZ_OBJEK">
+      <endUserTexts label="ZZ_OBJEK"/>
+      <inlineType primitiveType="VARCHAR" length="33" precision="33" scale="0"/>
+    </element>
+    <element name="COUNTER" aggregationBehavior="NONE">
+      <inlineType name="INTEGER" primitiveType="INTEGER"/>
+      <calculationDefinition language="COLUMN_ENGINE">
+        <formula>1</formula>
+      </calculationDefinition>
+    </element>
+    <element name="ZZ_KEYFIELD" aggregationBehavior="NONE">
+      <inlineType name="VARCHAR" primitiveType="VARCHAR" length="33"/>
+      <calculationDefinition language="COLUMN_ENGINE">
+        <formula>if( in(leftstr(&quot;DOKNR&quot;,2),'TD', 'MO', 'RP', 'OH', 'TR'), (&quot;DOKAR&quot;+ rpad(&quot;DOKNR&quot;, 25)+&quot;DOKVR&quot;+&quot;DOKTL&quot;),(&quot;DOKAR&quot;+ rpad(&quot;DOKNR&quot;, 25,'0')+&quot;DOKVR&quot;+&quot;DOKTL&quot;))</formula>
+      </calculationDefinition>
+    </element>
+    <filterExpression language="COLUMN_ENGINE">
+      <formula>&quot;DOKAR&quot;='ZPS'</formula>
+    </filterExpression>
+    <input>
+      <entity>#//EMPOWER.ZY_SD_SF::R_SD_SF_D_G_DRAW</entity>
+      <mapping xsi:type="Type:ElementMapping" targetName="DOKAR" sourceName="DOKAR"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DOKNR" sourceName="DOKNR"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DOKVR" sourceName="DOKVR"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DOKTL" sourceName="DOKTL"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DWNAM" sourceName="DWNAM"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DOKST" sourceName="DOKST"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="LABOR" sourceName="LABOR"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="AENNR" sourceName="AENNR"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="WERKA" sourceName="WERKA"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="LOEDK" sourceName="LOEDK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="CADKZ" sourceName="CADKZ"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="PRENR" sourceName="PRENR"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="PREVR" sourceName="PREVR"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="PRETL" sourceName="PRETL"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="PREAR" sourceName="PREAR"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="BEGRU" sourceName="BEGRU"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="FILEP" sourceName="FILEP"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DTTRG" sourceName="DTTRG"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DAPPL" sourceName="DAPPL"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="FILEP1" sourceName="FILEP1"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DTTRG1" sourceName="DTTRG1"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DAPPL1" sourceName="DAPPL1"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="VRLDAT" sourceName="VRLDAT"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="VPRIOR" sourceName="VPRIOR"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="RES1" sourceName="RES1"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="RES2" sourceName="RES2"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="RES3" sourceName="RES3"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="RES4" sourceName="RES4"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="MRK_FILEP" sourceName="MRK_FILEP"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="MRK_DTTRG" sourceName="MRK_DTTRG"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="MRK_FILEP1" sourceName="MRK_FILEP1"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="MRK_DTTRG1" sourceName="MRK_DTTRG1"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="ADATUM" sourceName="ADATUM"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DOKNR_VL" sourceName="DOKNR_VL"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DOKTL_VL" sourceName="DOKTL_VL"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DOKVR_VL" sourceName="DOKVR_VL"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="FILELEN" sourceName="FILELEN"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="FILELEN1" sourceName="FILELEN1"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="CM_RELEVANCE" sourceName="CM_RELEVANCE"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="CM_FIXED" sourceName="CM_FIXED"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="ZZ_OBJEK" sourceName="ZZ_OBJEK"/>
+      <parameterMapping xsi:type="Param:ConstantParameterMapping" parameterNameOtherView="ZDOKAR" value="ZPS"/>
+    </input>
+    <layout xCoordinate="140" yCoordinate="1112" width="-1" height="-1" expanded="true"/>
+  </viewNode>
+  <viewNode xsi:type="View:JoinNode" name="Star Join">
+    <element name="DRAW_DWNAM" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="Name of person responsible"/>
+      <inlineType primitiveType="NVARCHAR" length="12" precision="12" scale="0"/>
+    </element>
+    <element name="DRAW_DOKST" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="Document Status"/>
+      <inlineType primitiveType="NVARCHAR" length="2" precision="2" scale="0"/>
+    </element>
+    <element name="DRAW_LABOR" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="Laboratory/design office"/>
+      <inlineType primitiveType="NVARCHAR" length="3" precision="3" scale="0"/>
+    </element>
+    <element name="DRAW_AENNR" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="Change Number"/>
+      <inlineType primitiveType="NVARCHAR" length="12" precision="12" scale="0"/>
+    </element>
+    <element name="DRAW_WERKA" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="Plant"/>
+      <inlineType primitiveType="NVARCHAR" length="4" precision="4" scale="0"/>
+    </element>
+    <element name="DRAW_LOEDK" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="Deletion indicator"/>
+      <inlineType primitiveType="NVARCHAR" length="1" precision="1" scale="0"/>
+    </element>
+    <element name="DRAW_CADKZ" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="CAD Indicator"/>
+      <inlineType primitiveType="NVARCHAR" length="1" precision="1" scale="0"/>
+    </element>
+    <element name="DRAW_PRENR" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="Document number of superior document"/>
+      <inlineType primitiveType="NVARCHAR" length="25" precision="25" scale="0"/>
+    </element>
+    <element name="DRAW_PREVR" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="Document version of superior document"/>
+      <inlineType primitiveType="NVARCHAR" length="2" precision="2" scale="0"/>
+    </element>
+    <element name="DRAW_PRETL" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="Document Part of Superior Document"/>
+      <inlineType primitiveType="NVARCHAR" length="3" precision="3" scale="0"/>
+    </element>
+    <element name="DRAW_PREAR" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="Document type of the superior document"/>
+      <inlineType primitiveType="NVARCHAR" length="3" precision="3" scale="0"/>
+    </element>
+    <element name="DRAW_BEGRU" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="Authorization Group"/>
+      <inlineType primitiveType="NVARCHAR" length="4" precision="4" scale="0"/>
+    </element>
+    <element name="DRAW_FILEP" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="Original of document"/>
+      <inlineType primitiveType="NVARCHAR" length="255" precision="255" scale="0"/>
+    </element>
+    <element name="DRAW_DTTRG" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="Name of Data Carrier"/>
+      <inlineType primitiveType="NVARCHAR" length="10" precision="10" scale="0"/>
+    </element>
+    <element name="DRAW_DAPPL" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="Application"/>
+      <inlineType primitiveType="NVARCHAR" length="3" precision="3" scale="0"/>
+    </element>
+    <element name="DRAW_FILEP1" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="Original of document"/>
+      <inlineType primitiveType="NVARCHAR" length="255" precision="255" scale="0"/>
+    </element>
+    <element name="DRAW_DTTRG1" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="Name of Data Carrier"/>
+      <inlineType primitiveType="NVARCHAR" length="10" precision="10" scale="0"/>
+    </element>
+    <element name="DRAW_DAPPL1" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="Application"/>
+      <inlineType primitiveType="NVARCHAR" length="3" precision="3" scale="0"/>
+    </element>
+    <element name="DRAW_VRLDAT" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="Due Date"/>
+      <inlineType primitiveType="NVARCHAR" length="8" precision="8" scale="0"/>
+    </element>
+    <element name="DRAW_VPRIOR" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="Processing priority"/>
+      <inlineType primitiveType="NVARCHAR" length="1" precision="1" scale="0"/>
+    </element>
+    <element name="DRAW_RES1" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="Reserve field DRAW"/>
+      <inlineType primitiveType="NVARCHAR" length="14" precision="14" scale="0"/>
+    </element>
+    <element name="DRAW_RES2" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="Reserve field DRAW"/>
+      <inlineType primitiveType="NVARCHAR" length="14" precision="14" scale="0"/>
+    </element>
+    <element name="DRAW_RES3" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="Reserve field DRAW"/>
+      <inlineType primitiveType="NVARCHAR" length="14" precision="14" scale="0"/>
+    </element>
+    <element name="DRAW_RES4" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="Reserve field DRAW"/>
+      <inlineType primitiveType="NVARCHAR" length="14" precision="14" scale="0"/>
+    </element>
+    <element name="DRAW_MRK_FILEP" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="Original of document"/>
+      <inlineType primitiveType="NVARCHAR" length="255" precision="255" scale="0"/>
+    </element>
+    <element name="DRAW_MRK_DTTRG" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="Name of Data Carrier"/>
+      <inlineType primitiveType="NVARCHAR" length="10" precision="10" scale="0"/>
+    </element>
+    <element name="DRAW_MRK_FILEP1" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="Original of document"/>
+      <inlineType primitiveType="NVARCHAR" length="255" precision="255" scale="0"/>
+    </element>
+    <element name="DRAW_MRK_DTTRG1" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="Name of Data Carrier"/>
+      <inlineType primitiveType="NVARCHAR" length="10" precision="10" scale="0"/>
+    </element>
+    <element name="DRAW_ADATUM" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="Output date for document"/>
+      <inlineType primitiveType="NVARCHAR" length="8" precision="8" scale="0"/>
+    </element>
+    <element name="DRAW_DOKNR_VL" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="Document Number of Source Document"/>
+      <inlineType primitiveType="NVARCHAR" length="25" precision="25" scale="0"/>
+    </element>
+    <element name="DRAW_DOKTL_VL" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="Document part of source document"/>
+      <inlineType primitiveType="NVARCHAR" length="3" precision="3" scale="0"/>
+    </element>
+    <element name="DRAW_DOKVR_VL" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="Document version of source document"/>
+      <inlineType primitiveType="NVARCHAR" length="2" precision="2" scale="0"/>
+    </element>
+    <element name="DRAW_FILELEN" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="File length of original"/>
+      <inlineType primitiveType="NVARCHAR" length="12" precision="12" scale="0"/>
+    </element>
+    <element name="DRAW_FILELEN1" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="File length of original"/>
+      <inlineType primitiveType="NVARCHAR" length="12" precision="12" scale="0"/>
+    </element>
+    <element name="DRAW_CM_RELEVANCE" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="Relevant for Configuration Management"/>
+      <inlineType primitiveType="NVARCHAR" length="1" precision="1" scale="0"/>
+    </element>
+    <element name="DRAW_COUNTER" aggregationBehavior="SUM" engineAggregation="SUM">
+      <endUserTexts label="DRAW_COUNTER"/>
+      <inlineType primitiveType="INTEGER" length="0" precision="0" scale="0"/>
+    </element>
+    <element name="DOKAR" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="DOKAR"/>
+      <inlineType primitiveType="NVARCHAR" length="3" precision="3" scale="0"/>
+    </element>
+    <element name="DOKNR" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="DOKNR"/>
+      <inlineType primitiveType="NVARCHAR" length="25" precision="25" scale="0"/>
+    </element>
+    <element name="DOKVR" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="DOKVR"/>
+      <inlineType primitiveType="NVARCHAR" length="2" precision="2" scale="0"/>
+    </element>
+    <element name="DOKTL" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="DOKTL"/>
+      <inlineType primitiveType="NVARCHAR" length="3" precision="3" scale="0"/>
+    </element>
+    <element name="ZZ_OBJEK" aggregationBehavior="NONE" drillDownEnablement="DRILL_DOWN">
+      <endUserTexts label="ZZ_OBJEK"/>
+      <inlineType primitiveType="VARCHAR" length="33" precision="33" scale="0"/>
+    </element>
+    <input>
+      <viewNode xsi:type="View:Projection">#//P_DRAW</viewNode>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAW_DWNAM" sourceName="DWNAM"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAW_DOKST" sourceName="DOKST"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAW_LABOR" sourceName="LABOR"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAW_AENNR" sourceName="AENNR"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAW_WERKA" sourceName="WERKA"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAW_LOEDK" sourceName="LOEDK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAW_CADKZ" sourceName="CADKZ"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAW_PRENR" sourceName="PRENR"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAW_PREVR" sourceName="PREVR"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAW_PRETL" sourceName="PRETL"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAW_PREAR" sourceName="PREAR"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAW_BEGRU" sourceName="BEGRU"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAW_FILEP" sourceName="FILEP"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAW_DTTRG" sourceName="DTTRG"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAW_DAPPL" sourceName="DAPPL"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAW_FILEP1" sourceName="FILEP1"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAW_DTTRG1" sourceName="DTTRG1"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAW_DAPPL1" sourceName="DAPPL1"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAW_VRLDAT" sourceName="VRLDAT"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAW_VPRIOR" sourceName="VPRIOR"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAW_RES1" sourceName="RES1"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAW_RES2" sourceName="RES2"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAW_RES3" sourceName="RES3"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAW_RES4" sourceName="RES4"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAW_MRK_FILEP" sourceName="MRK_FILEP"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAW_MRK_DTTRG" sourceName="MRK_DTTRG"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAW_MRK_FILEP1" sourceName="MRK_FILEP1"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAW_MRK_DTTRG1" sourceName="MRK_DTTRG1"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAW_ADATUM" sourceName="ADATUM"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAW_DOKNR_VL" sourceName="DOKNR_VL"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAW_DOKTL_VL" sourceName="DOKTL_VL"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAW_DOKVR_VL" sourceName="DOKVR_VL"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAW_FILELEN" sourceName="FILELEN"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAW_FILELEN1" sourceName="FILELEN1"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAW_CM_RELEVANCE" sourceName="CM_RELEVANCE"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DOKAR" sourceName="DOKAR"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DOKNR" sourceName="DOKNR"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DOKVR" sourceName="DOKVR"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DOKTL" sourceName="DOKTL"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="ZZ_OBJEK" sourceName="ZZ_OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAW_COUNTER" sourceName="COUNTER"/>
+      <layout xCoordinate="610" yCoordinate="37"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF::R_SD_SF_D_G_AXONMBX_DRWEFF</entity>
+      <mapping xsi:type="View:InputMapping" targetName="DOKAR" sourceName="DOKAR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="DOKNR" sourceName="DOKNR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="DOKTL" sourceName="DOKTL" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="DOKVR" sourceName="DOKVR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWEFF_DOKAR" sourceName="DOKAR">
+        <targetEndUserTexts label="Document Type"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWEFF_DOKNR" sourceName="DOKNR">
+        <targetEndUserTexts label="DRWEFF_DOKNR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWEFF_DOKTL" sourceName="DOKTL">
+        <targetEndUserTexts label="Documnet PArt"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWEFF_DOKVR" sourceName="DOKVR">
+        <targetEndUserTexts label="DRWEFF_DOKVR"/>
+      </mapping>
+      <excludedElementName>DOKAR</excludedElementName>
+      <excludedElementName>DOKNR</excludedElementName>
+      <excludedElementName>DOKTL</excludedElementName>
+      <excludedElementName>DOKVR</excludedElementName>
+      <excludedElementName>MATNR</excludedElementName>
+      <layout xCoordinate="1539" yCoordinate="324"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF::R_SD_SF_D_G_AXONXAPP_DRWEMB</entity>
+      <mapping xsi:type="View:InputMapping" targetName="DOKNR" sourceName="DOKNR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="DOKAR" sourceName="DOKAR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="DOKTL" sourceName="DOKTL" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="DOKVR" sourceName="DOKVR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWEMB_DOKNR" sourceName="DOKNR">
+        <targetEndUserTexts label="DRWEMB_DOKNR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWEMB_DOKAR" sourceName="DOKAR">
+        <targetEndUserTexts label="DRWEMB_DOKAR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWEMB_DOKTL" sourceName="DOKTL">
+        <targetEndUserTexts label="DRWEMB_DOKTL"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWEMB_DOKVR" sourceName="DOKVR">
+        <targetEndUserTexts label="DRWEMB_DOKVR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWEMB_MATNR" sourceName="MATNR">
+        <targetEndUserTexts label="Materianl Number (DRWEMB)"/>
+      </mapping>
+      <excludedElementName>DOKNR</excludedElementName>
+      <excludedElementName>DOKAR</excludedElementName>
+      <excludedElementName>DOKTL</excludedElementName>
+      <excludedElementName>DOKVR</excludedElementName>
+      <layout xCoordinate="431" yCoordinate="745"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF::R_SD_SF_D_G_AXONXAPP_DRWEXT</entity>
+      <mapping xsi:type="View:InputMapping" targetName="DOKNR" sourceName="DOKNR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="DOKAR" sourceName="DOKAR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="DOKTL" sourceName="DOKTL" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="DOKVR" sourceName="DOKVR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWEXT_COMP_CAT" sourceName="COMP_CAT">
+        <targetEndUserTexts label="Compliance Cat (DRWEXT)"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWEXT_MUL_RESTR" sourceName="MUL_RESTR">
+        <targetEndUserTexts label="Mulit Unit Maint Rest.(DRWEXT)"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWEXT_DOKNR" sourceName="DOKNR">
+        <targetEndUserTexts label="DRWEXT_DOKNR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWEXT_DOKAR" sourceName="DOKAR">
+        <targetEndUserTexts label="DRWEXT_DOKAR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWEXT_DOKTL" sourceName="DOKTL">
+        <targetEndUserTexts label="DRWEXT_DOKTL"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWEXT_DOKVR" sourceName="DOKVR">
+        <targetEndUserTexts label="DRWEXT_DOKVR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWEXT_QMNUM" sourceName="QMNUM">
+        <targetEndUserTexts label="Notification Number (DRWEXT)"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWEXT_AENAM" sourceName="AENAM">
+        <targetEndUserTexts label="Person (Last Change) (DRWEXT)"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWEXT_AEDAT" sourceName="AEDAT">
+        <targetEndUserTexts label="Date of Last change (DRWEXT)"/>
+      </mapping>
+      <excludedElementName>DOKNR</excludedElementName>
+      <excludedElementName>DOKAR</excludedElementName>
+      <excludedElementName>DOKTL</excludedElementName>
+      <excludedElementName>DOKVR</excludedElementName>
+      <layout xCoordinate="248" yCoordinate="373"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF::R_SD_SF_D_G_DRWREL_DRAD_ZPL</entity>
+      <mapping xsi:type="View:InputMapping" targetName="SUBDOKNR" sourceName="DOKNR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="SUBDOKAR" sourceName="DOKAR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="SUBDOKTL" sourceName="DOKTL" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="SUBDOKVR" sourceName="DOKVR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_ZPL_DOKNR" sourceName="DOKNR">
+        <targetEndUserTexts label="DRAD_ZPL_DOKNR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_ZPL_DOKAR" sourceName="DOKAR">
+        <targetEndUserTexts label="DRAD_ZPL_DOKAR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_ZPL_DOKTL" sourceName="DOKTL">
+        <targetEndUserTexts label="DRAD_ZPL_DOKTL"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_ZPL_DOKVR" sourceName="DOKVR">
+        <targetEndUserTexts label="DRAD_ZPL_DOKVR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_ZPL_ERNAM" sourceName="ERNAM">
+        <targetEndUserTexts label="Person (Create) (DRAD_ZPL)"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_ZPL_ERDAT" sourceName="ERDAT">
+        <targetEndUserTexts label="Date (Create) (DRAD_ZPL)"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_ZPL_AENAM" sourceName="AENAM">
+        <targetEndUserTexts label="Person (Last Change) (DRAD_ZPL)"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_ZPL_AEDAT" sourceName="AEDAT">
+        <targetEndUserTexts label="Date (Last Change) (DRAD_ZPL)"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_ZPL_ASCOD" sourceName="ASCOD">
+        <targetEndUserTexts label="ATA System Coe (DRAD_ZPL)"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_ZPL_VBELN" sourceName="VBELN">
+        <targetEndUserTexts label="Sales Document (DRAD_ZPL)"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_ZPL_WPTXT_DOKNR" sourceName="WPTXT_DOKNR">
+        <targetEndUserTexts label="Policy Description (DRAD_ZPL)"/>
+      </mapping>
+      <excludedElementName>DOKNR</excludedElementName>
+      <excludedElementName>DOKAR</excludedElementName>
+      <excludedElementName>DOKTL</excludedElementName>
+      <excludedElementName>DOKVR</excludedElementName>
+      <excludedElementName>SUBDOKNR</excludedElementName>
+      <excludedElementName>SUBDOKAR</excludedElementName>
+      <excludedElementName>SUBDOKTL</excludedElementName>
+      <excludedElementName>SUBDOKVR</excludedElementName>
+      <layout xCoordinate="23" yCoordinate="3"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF::R_SD_SF_D_G_DRAD_HIER_PNODID</entity>
+      <mapping xsi:type="View:InputMapping" targetName="DOKAR" sourceName="DOKAR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="DOKNR" sourceName="DOKNR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="DOKVR" sourceName="DOKVR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="DOKTL" sourceName="DOKTL" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_PNODID_DOKAR" sourceName="DOKAR">
+        <targetEndUserTexts label="DRAD_PNODID_DOKAR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_PNODID_DOKNR" sourceName="DOKNR">
+        <targetEndUserTexts label="DRAD_PNODID_DOKNR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_PNODID_DOKVR" sourceName="DOKVR">
+        <targetEndUserTexts label="DRAD_PNODID_DOKVR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_PNODID_DOKTL" sourceName="DOKTL">
+        <targetEndUserTexts label="R_SD_SF_D_G_DRAD_HIER_PNODID_DOKTL"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_PNODID_DOKOB" sourceName="DOKOB">
+        <targetEndUserTexts label="R_SD_SF_D_G_DRAD_HIER_PNODID_DOKOB"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_PNODID_OBZAE" sourceName="OBZAE">
+        <targetEndUserTexts label="DRAD_PNODID_OBZAE"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_PNODID_OBJKY" sourceName="OBJKY">
+        <targetEndUserTexts label="DRAD_PNODID_OBJKY"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_PNODID_VRKSTAT" sourceName="VRKSTAT">
+        <targetEndUserTexts label="DRAD_PNODID_VRKSTAT"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_PNODID_VRKSTAT1" sourceName="VRKSTAT1">
+        <targetEndUserTexts label="DRAD_PNODID_VRKSTAT1"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_PNODID_VOBJ" sourceName="VOBJ">
+        <targetEndUserTexts label="DRAD_PNODID_VOBJ"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_PNODID_VKEY" sourceName="VKEY">
+        <targetEndUserTexts label="DRAD_PNODID_VKEY"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_PNODID_VDIR" sourceName="VDIR">
+        <targetEndUserTexts label="DRAD_PNODID_VDIR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_PNODID_VIEWFLAG" sourceName="VIEWFLAG">
+        <targetEndUserTexts label="DRAD_PNODID_VIEWFLAG"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_PNODID_DELFLAG" sourceName="DELFLAG">
+        <targetEndUserTexts label="DRAD_PNODID_DELFLAG"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_PNODID_LONGTEXT_ID" sourceName="LONGTEXT_ID">
+        <targetEndUserTexts label="DRAD_PNODID_LONGTEXT_ID"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_PNODID_CAD_POS" sourceName="CAD_POS">
+        <targetEndUserTexts label="DRAD_PNODID_CAD_POS"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_PNODID_CM_FIXED" sourceName="CM_FIXED">
+        <targetEndUserTexts label="R_SD_SF_D_G_DRAD_HIER_PNODID_CM_FIXED"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_PNODID_PNGUID" sourceName="PNGUID">
+        <targetEndUserTexts label="R_SD_SF_D_G_DRAD_HIER_PNODID_PNGUID"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_PNODID_PNAME" sourceName="PNAME">
+        <targetEndUserTexts label="iPPE Object (DRAD)"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_PNODID_NAMEID" sourceName="NAMEID">
+        <targetEndUserTexts label="R_SD_SF_D_G_DRAD_HIER_PNODID_NAMEID"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_PNODID_NAMEID_OTYPE" sourceName="NAMEID_OTYPE">
+        <targetEndUserTexts label="DRAD_PNODID_NAMEID_OTYPE"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_PNODID_NAMEID_APPLOBJ" sourceName="NAMEID_APPLOBJ">
+        <targetEndUserTexts label="DRAD_PNODID_NAMEID_APPLOBJ"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_PNODID_CLINT" sourceName="CLINT">
+        <targetEndUserTexts label="DRAD_PNODID_CLINT"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_PNODID_PNTYPE" sourceName="PNTYPE">
+        <targetEndUserTexts label="iPPE Node Type(DRAD)"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_PNODID_APPLOBJ_TYPE" sourceName="APPLOBJ_TYPE">
+        <targetEndUserTexts label="DRAD_PNODID_APPLOBJ_TYPE"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_PNODID_TIMSTMP" sourceName="TIMSTMP">
+        <targetEndUserTexts label="DRAD_PNODID_TIMSTMP"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_PNODID_CREADAT" sourceName="CREADAT">
+        <targetEndUserTexts label="DRAD_PNODID_CREADAT"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_PNODID_CREABY" sourceName="CREABY">
+        <targetEndUserTexts label="DRAD_PNODID_CREABY"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_PNODID_CHNGDAT" sourceName="CHNGDAT">
+        <targetEndUserTexts label="DRAD_PNODID_CHNGDAT"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_PNODID_CHNGBY" sourceName="CHNGBY">
+        <targetEndUserTexts label="DRAD_PNODID_CHNGBY"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_PNODID_LOGSYS" sourceName="LOGSYS">
+        <targetEndUserTexts label="DRAD_PNODID_LOGSYS"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_PNODID_HISTFLG" sourceName="HISTFLG">
+        <targetEndUserTexts label="DRAD_PNODID_HISTFLG"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_PNODID_PNTEXT" sourceName="PNTEXT">
+        <targetEndUserTexts label="Short Text (DRAD-PNODID)"/>
+      </mapping>
+      <excludedElementName>DOKAR</excludedElementName>
+      <excludedElementName>DOKNR</excludedElementName>
+      <excludedElementName>DOKVR</excludedElementName>
+      <excludedElementName>DOKTL</excludedElementName>
+      <layout xCoordinate="1043" yCoordinate="257"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF::R_SD_SF_D_G_DRAT</entity>
+      <mapping xsi:type="View:InputMapping" targetName="DOKAR" sourceName="DOKAR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="DOKNR" sourceName="DOKNR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="DOKVR" sourceName="DOKVR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="DOKTL" sourceName="DOKTL" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAT_DOKAR" sourceName="DOKAR">
+        <targetEndUserTexts label="DRAT_DOKAR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAT_DOKNR" sourceName="DOKNR">
+        <targetEndUserTexts label="DRAT_DOKNR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAT_DOKVR" sourceName="DOKVR">
+        <targetEndUserTexts label="DRAT_DOKVR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAT_DOKTL" sourceName="DOKTL">
+        <targetEndUserTexts label="DRAT_DOKTL"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAT_DKTXT" sourceName="DKTXT">
+        <targetEndUserTexts label="DRAT_DKTXT"/>
+      </mapping>
+      <excludedElementName>DOKAR</excludedElementName>
+      <excludedElementName>DOKNR</excludedElementName>
+      <excludedElementName>DOKVR</excludedElementName>
+      <excludedElementName>DOKTL</excludedElementName>
+      <layout xCoordinate="917" yCoordinate="480"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF::R_SD_SF_D_G_PLKO</entity>
+      <mapping xsi:type="View:InputMapping" targetName="CURRENT_DOCNO" sourceName="DOKNR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="CURRENT_DOCTYP" sourceName="DOKAR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="CURRENT_DOCVR" sourceName="DOKVR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="CURRENT_DOCTL" sourceName="DOKTL" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="PLKO_PLNTY" sourceName="PLNTY">
+        <targetEndUserTexts label="Task List Type"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="PLKO_PLNNR" sourceName="PLNNR">
+        <targetEndUserTexts label="Key for TaskList Type"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="PLKO_PLNAL" sourceName="PLNAL">
+        <targetEndUserTexts label="Group Counter"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="PLKO_AENNR" sourceName="AENNR">
+        <targetEndUserTexts label="PLKO_AENNR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="PLKO_AEDAT" sourceName="AEDAT">
+        <targetEndUserTexts label="PLKO_AEDAT"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="PLKO_AENAM" sourceName="AENAM">
+        <targetEndUserTexts label="PLKO_AENAM"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_SD_SF_D_G_PLKO_IWERK" sourceName="IWERK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_SD_SF_D_G_PLKO_OBJNR" sourceName="OBJNR"/>
+      <excludedElementName>CURRENT_DOCNO</excludedElementName>
+      <excludedElementName>CURRENT_DOCTYP</excludedElementName>
+      <excludedElementName>CURRENT_DOCVR</excludedElementName>
+      <excludedElementName>CURRENT_DOCTL</excludedElementName>
+      <layout xCoordinate="1116" yCoordinate="168"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF::R_SD_SF_D_G_AXONXAPP_CU04B</entity>
+      <mapping xsi:type="View:InputMapping" targetName="DOKAR" sourceName="DOKAR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="CU04B_DOKAR" sourceName="DOKAR">
+        <targetEndUserTexts label="CU04B_DOKAR"/>
+      </mapping>
+      <excludedElementName>DOKAR</excludedElementName>
+      <layout xCoordinate="1571" yCoordinate="705"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF::R_SD_SF_D_G_AXONXAPP_DRWPPG</entity>
+      <mapping xsi:type="View:InputMapping" targetName="DOKAR" sourceName="DOKAR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="DOKNR" sourceName="DOKNR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="DOKTL" sourceName="DOKTL" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="DOKVR" sourceName="DOKVR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWPPG_DOKAR" sourceName="DOKAR">
+        <targetEndUserTexts label="R_SD_SF_D_G_AXONXAPP_DRWPPG_DOKAR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWPPG_DOKNR" sourceName="DOKNR">
+        <targetEndUserTexts label="DRWPPG_DOKNR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWPPG_DOKTL" sourceName="DOKTL">
+        <targetEndUserTexts label="DRWPPG_DOKTL"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWPPG_DOKVR" sourceName="DOKVR">
+        <targetEndUserTexts label="DRWPPG_DOKVR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWPPG_SEQNR" sourceName="SEQNR">
+        <targetEndUserTexts label="DRWPPG_SEQNR"/>
+      </mapping>
+      <excludedElementName>DOKAR</excludedElementName>
+      <excludedElementName>DOKNR</excludedElementName>
+      <excludedElementName>DOKTL</excludedElementName>
+      <excludedElementName>DOKVR</excludedElementName>
+      <layout xCoordinate="2256" yCoordinate="212"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_WARRANTY_END_DATE</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <excludedElementName>ATNAM</excludedElementName>
+      <excludedElementName>OBJEK</excludedElementName>
+      <layout xCoordinate="2675" yCoordinate="195"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_AC_SB_REV</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_AC_SB_REV_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_AC_SB_REV_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <layout xCoordinate="3236" yCoordinate="30"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_AD_REF</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_AD_REF_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_AD_REF_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <layout xCoordinate="3709" yCoordinate="30"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_AD_REL</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_AD_REL_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_AD_REL_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <layout xCoordinate="4162" yCoordinate="30"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_AD_REV</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_AD_REV_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_AD_REV_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <layout xCoordinate="4615" yCoordinate="30"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_AD_TEXT</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_AD_TEXT_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_AD_TEXT_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <layout xCoordinate="5070" yCoordinate="30"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_AEO</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_AEO_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_AEO_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <layout xCoordinate="5531" yCoordinate="30"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_AEO_REV</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_AEO_REV_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_AEO_REV_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <layout xCoordinate="5965" yCoordinate="30"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_AMDT</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_AMDT_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_AMDT_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <layout xCoordinate="6426" yCoordinate="30"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_CMM_ATA</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_CMM_ATA_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_CMM_ATA_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <layout xCoordinate="6795" yCoordinate="438"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_CMM_DATE</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_CMM_DATE_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_CMM_DATE_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <layout xCoordinate="7338" yCoordinate="30"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_CMM_EDITOR</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_CMM_EDITOR_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_CMM_EDITOR_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <layout xCoordinate="7812" yCoordinate="30"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_CMM_REF</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_CMM_REF_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_CMM_REF_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <layout xCoordinate="8300" yCoordinate="30"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_CMM_REV_NO</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_CMM_REV_NO_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_CMM_REV_NO_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <layout xCoordinate="8765" yCoordinate="30"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_DEVISE</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_DEVISE_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_DEVISE_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <layout xCoordinate="9255" yCoordinate="30"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_DOC_REC</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_DOC_REC_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_DOC_REC_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <layout xCoordinate="9706" yCoordinate="30"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_DOC_REF</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_DOC_REF_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_DOC_REF_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <layout xCoordinate="10168" yCoordinate="30"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_DOC_TYPE</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_DOC_TYPE_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_DOC_TYPE_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <layout xCoordinate="10629" yCoordinate="30"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_DOC_VER</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_DOC_VER_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_DOC_VER_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <layout xCoordinate="11097" yCoordinate="30"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_DTD</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_DTD_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_DTD_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <layout xCoordinate="11390" yCoordinate="424"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_DTD_REV</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_DTD_REV_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_DTD_REV_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <layout xCoordinate="11996" yCoordinate="30"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_EASA_RATING</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_EASA_RATING_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_EASA_RATING_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <layout xCoordinate="12459" yCoordinate="30"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_ETOPS</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_ETOPS_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_ETOPS_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <layout xCoordinate="12948" yCoordinate="30"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_FOC_END_DATE</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_FOC_END_DATE_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_FOC_END_DATE_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <layout xCoordinate="13395" yCoordinate="30"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_MAN_REF</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_MAN_REF_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_MAN_REF_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <layout xCoordinate="13891" yCoordinate="30"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_MOD_AC</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_MOD_AC_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_MOD_AC_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <layout xCoordinate="14355" yCoordinate="30"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_MOD_COST</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_MOD_COST_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_MOD_COST_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <layout xCoordinate="14815" yCoordinate="30"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_SB</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_SB_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_SB_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <layout xCoordinate="15282" yCoordinate="81"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_SUPPLEMENT_PAGE</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_SUPPLEMENT_PAGE_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_SUPPLEMENT_PAGE_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <layout xCoordinate="15717" yCoordinate="11"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF::R_SD_SF_D_G_AXONXAPP_DRWMPR</entity>
+      <mapping xsi:type="View:InputMapping" targetName="POLDOKNR" sourceName="DOKNR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="POLDOKAR" sourceName="DOKAR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="POLDOKTL" sourceName="DOKTL" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="POLDOKVR" sourceName="DOKVR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_SD_SF_D_G_AXONXAPP_DRWMPR_POLDOKAR" sourceName="POLDOKAR"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_SD_SF_D_G_AXONXAPP_DRWMPR_POLDOKTL" sourceName="POLDOKTL"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_SD_SF_D_G_AXONXAPP_DRWMPR_POLDOKVR" sourceName="POLDOKVR"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_SD_SF_D_G_AXONXAPP_DRWMPR_COMP_CAT" sourceName="COMP_CAT"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="ERNAM_MOD" sourceName="ERNAM">
+        <targetEndUserTexts label="Name of the Person (Mod)"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="ERDAT_MOD" sourceName="ERDAT">
+        <targetEndUserTexts label="Creation Date (Mod)"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_SD_SF_D_G_AXONXAPP_DRWMPR_AENAM" sourceName="AENAM"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_SD_SF_D_G_AXONXAPP_DRWMPR_AEDAT" sourceName="AEDAT"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="MPL_NODE_MOD" sourceName="MPL_NODE">
+        <targetEndUserTexts label="iPPE Node Description (Mod)"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="ASCOD_MOD" sourceName="ASCOD">
+        <targetEndUserTexts label="ATA System Code (Mod)"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DOKNR_MOD" sourceName="DOKNR">
+        <targetEndUserTexts label="Doc Number (Mod)"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DOKAR_MOD" sourceName="DOKAR">
+        <targetEndUserTexts label="Doc Type (Mod)"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DOKTL_MOD" sourceName="DOKTL">
+        <targetEndUserTexts label="Doc Part (Mod)"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DOKVR_MOD" sourceName="DOKVR">
+        <targetEndUserTexts label="Doc Version (Mod)"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="Z_AEO_MOD" sourceName="Z_AEO">
+        <targetEndUserTexts label="Reference (DTA) (Mod)"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="Z_AEO_REV_MOD" sourceName="Z_AEO_REV">
+        <targetEndUserTexts label="Revision of DTA (Mod)"/>
+      </mapping>
+      <excludedElementName>POLDOKAR</excludedElementName>
+      <excludedElementName>POLDOKTL</excludedElementName>
+      <excludedElementName>POLDOKVR</excludedElementName>
+      <excludedElementName>AENAM</excludedElementName>
+      <excludedElementName>AEDAT</excludedElementName>
+      <excludedElementName>POLDOKNR</excludedElementName>
+      <excludedElementName>ZZKEYFIELD</excludedElementName>
+      <layout xCoordinate="16170" yCoordinate="265"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF::R_SD_SF_D_G_AXONXAPP_DRWREL</entity>
+      <mapping xsi:type="View:InputMapping" targetName="SUBDOKNR" sourceName="DOKNR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="SUBDOKAR" sourceName="DOKAR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="SUBDOKTL" sourceName="DOKTL" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="SUBDOKVR" sourceName="DOKVR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DOKNR_REL" sourceName="DOKNR">
+        <targetEndUserTexts label="Document Numb (rel)"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DOKAR_REL" sourceName="DOKAR">
+        <targetEndUserTexts label="Document Type (Rel)"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DOKTL_REL" sourceName="DOKTL">
+        <targetEndUserTexts label="Document Part (Rel)"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DOKVR_REL" sourceName="DOKVR">
+        <targetEndUserTexts label="Document Vers(Rel)"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_SUBDOKNR" sourceName="SUBDOKNR">
+        <targetEndUserTexts label="DRWREL_SUBDOKNR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_SUBDOKAR" sourceName="SUBDOKAR">
+        <targetEndUserTexts label="DRWREL_SUBDOKAR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_SUBDOKTL" sourceName="SUBDOKTL">
+        <targetEndUserTexts label="DRWREL_SUBDOKTL"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_SUBDOKVR" sourceName="SUBDOKVR">
+        <targetEndUserTexts label="DRWREL_SUBDOKVR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_RELTYPE" sourceName="RELTYPE">
+        <targetEndUserTexts label="DRWREL_RELTYPE"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_DELFLAG" sourceName="DELFLAG">
+        <targetEndUserTexts label="DRWREL_DELFLAG"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_ERNAM" sourceName="ERNAM">
+        <targetEndUserTexts label="DRWREL_ERNAM"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_ERDAT" sourceName="ERDAT">
+        <targetEndUserTexts label="DRWREL_ERDAT"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_AENAM" sourceName="AENAM">
+        <targetEndUserTexts label="DRWREL_AENAM"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_AEDAT" sourceName="AEDAT">
+        <targetEndUserTexts label="DRWREL_AEDAT"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_MAIN_DOKAR" sourceName="MAIN_DOKAR">
+        <targetEndUserTexts label="DRWREL_MAIN_DOKAR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_MAIN_DOKNR" sourceName="MAIN_DOKNR">
+        <targetEndUserTexts label="DRWREL_MAIN_DOKNR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_MAIN_DOKVR" sourceName="MAIN_DOKVR">
+        <targetEndUserTexts label="DRWREL_MAIN_DOKVR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_MAIN_DOKTL" sourceName="MAIN_DOKTL">
+        <targetEndUserTexts label="DRWREL_MAIN_DOKTL"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_RELN_TXTID" sourceName="RELN_TXTID">
+        <targetEndUserTexts label="DRWREL_RELN_TXTID"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_SEQUENCE" sourceName="SEQUENCE">
+        <targetEndUserTexts label="DRWREL_SEQUENCE"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_WRK_LEVEL" sourceName="WRK_LEVEL">
+        <targetEndUserTexts label="DRWREL_WRK_LEVEL"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_MPL_NODE" sourceName="MPL_NODE">
+        <targetEndUserTexts label="DRWREL_MPL_NODE"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_ASCOD" sourceName="ASCOD">
+        <targetEndUserTexts label="DRWREL_ASCOD"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_AUTO_POP_MPD" sourceName="AUTO_POP_MPD">
+        <targetEndUserTexts label="DRWREL_AUTO_POP_MPD"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_VDIR" sourceName="VDIR">
+        <targetEndUserTexts label="DRWREL_VDIR"/>
+      </mapping>
+      <excludedElementName>SUBDOKNR</excludedElementName>
+      <excludedElementName>SUBDOKAR</excludedElementName>
+      <excludedElementName>SUBDOKTL</excludedElementName>
+      <excludedElementName>SUBDOKVR</excludedElementName>
+      <excludedElementName>DELFLAG</excludedElementName>
+      <excludedElementName>ERNAM</excludedElementName>
+      <excludedElementName>ERDAT</excludedElementName>
+      <excludedElementName>AENAM</excludedElementName>
+      <excludedElementName>AEDAT</excludedElementName>
+      <excludedElementName>MPL_NODE</excludedElementName>
+      <excludedElementName>ASCOD</excludedElementName>
+      <excludedElementName>VDIR</excludedElementName>
+      <layout xCoordinate="16733" yCoordinate="309"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF::R_SD_SF_D_G_AXONMBX_SOFT_TI</entity>
+      <mapping xsi:type="View:InputMapping" targetName="DOKNR" sourceName="DOKNR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="DOKAR" sourceName="DOKAR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="DOKTL" sourceName="DOKTL" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="DOKVR" sourceName="DOKVR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="SOFT_TI_DOKNR" sourceName="DOKNR">
+        <targetEndUserTexts label="SOFT_TI_DOKNR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="SOFT_TI_DOKAR" sourceName="DOKAR">
+        <targetEndUserTexts label="SOFT_TI_DOKAR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="SOFT_TI_DOKTL" sourceName="DOKTL">
+        <targetEndUserTexts label="SOFT_TI_DOKTL"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="SOFT_TI_DOKVR" sourceName="DOKVR">
+        <targetEndUserTexts label="SOFT_TI_DOKVR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="SOFT_TI_MPL_NODE" sourceName="MPL_NODE">
+        <targetEndUserTexts label="SOFT_TI_MPL_NODE"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="SOFT_TI_ASCOD" sourceName="ASCOD">
+        <targetEndUserTexts label="SOFT_TI_ASCOD"/>
+      </mapping>
+      <excludedElementName>DOKNR</excludedElementName>
+      <excludedElementName>DOKAR</excludedElementName>
+      <excludedElementName>DOKTL</excludedElementName>
+      <excludedElementName>DOKVR</excludedElementName>
+      <excludedElementName>MPL_NODE</excludedElementName>
+      <excludedElementName>ASCOD</excludedElementName>
+      <layout xCoordinate="17112" yCoordinate="10"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF::R_SD_SF_D_G_LIFERU_DRWEXT_DRWMPR_SOFT_TI</entity>
+      <mapping xsi:type="View:InputMapping" targetName="DOKNR" sourceName="DOKNR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="DOKAR" sourceName="DOKAR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="DOKTL" sourceName="DOKTL" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="DOKVR" sourceName="DOKVR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="LIFERU_DOKNR" sourceName="DOKNR">
+        <targetEndUserTexts label="LIFERU_DOKNR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="LIFERU_DOKAR" sourceName="DOKAR">
+        <targetEndUserTexts label="LIFERU_DOKAR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="LIFERU_DOKTL" sourceName="DOKTL">
+        <targetEndUserTexts label="LIFERU_DOKTL"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="LIFERU_DOKVR" sourceName="DOKVR">
+        <targetEndUserTexts label="LIFERU__DOKVR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="LIFERU_MPL_NODE" sourceName="MPL_NODE">
+        <targetEndUserTexts label="R_SD_SF_D_G_LIFERU_DRWEXT_DRWMPR_SOFT_TI_MPL_NODE"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="LIFERU_ASCOD" sourceName="ASCOD">
+        <targetEndUserTexts label="LIFERU_ASCOD"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="LIFERU_MEASUREMENT_POSITION" sourceName="MEASUREMENT_POSITION">
+        <targetEndUserTexts label="LIFERU_MEASUREMENT_POSITION"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="LIFERU_UOM" sourceName="UNIT_OF_MEASURE">
+        <targetEndUserTexts label="LIFERU_UOM"/>
+      </mapping>
+      <excludedElementName>DOKNR</excludedElementName>
+      <excludedElementName>DOKAR</excludedElementName>
+      <excludedElementName>DOKTL</excludedElementName>
+      <excludedElementName>DOKVR</excludedElementName>
+      <excludedElementName>MPL_NODE</excludedElementName>
+      <excludedElementName>ASCOD</excludedElementName>
+      <excludedElementName>MEASUREMENT_POSITION</excludedElementName>
+      <layout xCoordinate="17160" yCoordinate="340"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF::R_SD_SF_D_G_AXONXAPP_DRWREL_ZPS</entity>
+      <mapping xsi:type="View:InputMapping" targetName="DOKNR" sourceName="DOKNR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="DOKAR" sourceName="DOKAR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="DOKTL" sourceName="DOKTL" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="DOKVR" sourceName="DOKVR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_ZPS_SUBDOKNR" sourceName="SUBDOKNR">
+        <targetEndUserTexts label="Sub Rel. Document"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_ZPS_SUBDOKAR" sourceName="SUBDOKAR">
+        <targetEndUserTexts label="Sub Rel. Document Type"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_ZPS_SUBDOKTL" sourceName="SUBDOKTL">
+        <targetEndUserTexts label="Sub Related Document Part"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_ZPS_SUBDOKVR" sourceName="SUBDOKVR">
+        <targetEndUserTexts label="Sub Rel. Document version"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_ZPS_RELTYPE" sourceName="RELTYPE">
+        <targetEndUserTexts label="Document Relationship Type"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_SD_SF_D_G_AXONXAPP_DRWREL_ZPS_DELFLAG" sourceName="DELFLAG"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_SD_SF_D_G_AXONXAPP_DRWREL_ZPS_ERNAM" sourceName="ERNAM"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_SD_SF_D_G_AXONXAPP_DRWREL_ZPS_ERDAT" sourceName="ERDAT"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_SD_SF_D_G_AXONXAPP_DRWREL_ZPS_AENAM" sourceName="AENAM"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_SD_SF_D_G_AXONXAPP_DRWREL_ZPS_AEDAT" sourceName="AEDAT"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_ZPS_MAIN_DOKAR" sourceName="MAIN_DOKAR">
+        <targetEndUserTexts label="Parent Doc Type"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_ZPS_MAIN_DOKNR" sourceName="MAIN_DOKNR">
+        <targetEndUserTexts label="Parent Document Number"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_ZPS_MAIN_DOKVR" sourceName="MAIN_DOKVR">
+        <targetEndUserTexts label="Parent Doc Version"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_ZPS_MAIN_DOKTL" sourceName="MAIN_DOKTL">
+        <targetEndUserTexts label="Parent Doc Part"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_ZPS_RELN_TXTID" sourceName="RELN_TXTID">
+        <targetEndUserTexts label="Text Name"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_ZPS_SEQUENCE" sourceName="SEQUENCE">
+        <targetEndUserTexts label="Sequence"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_ZPS_WRK_LEVEL" sourceName="WRK_LEVEL">
+        <targetEndUserTexts label="Workscope level"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_SD_SF_D_G_AXONXAPP_DRWREL_ZPS_MPL_NODE" sourceName="MPL_NODE"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_SD_SF_D_G_AXONXAPP_DRWREL_ZPS_ASCOD" sourceName="ASCOD"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_ZPS_AUTO_POP_MPD" sourceName="AUTO_POP_MPD">
+        <targetEndUserTexts label="Auto Populate MPD Data"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_SD_SF_D_G_AXONXAPP_DRWREL_ZPS_VDIR" sourceName="VDIR"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_DOKNR" sourceName="DOKNR">
+        <targetEndUserTexts label="DRWREL_DOKNR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_DOKAR" sourceName="DOKAR">
+        <targetEndUserTexts label="DRWREL_DOKar"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_DOKTL" sourceName="DOKTL">
+        <targetEndUserTexts label="DRWREL_DOKTL"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRWREL_DOKVR" sourceName="DOKVR">
+        <targetEndUserTexts label="DRWREL_DOKVR"/>
+      </mapping>
+      <excludedElementName>DELFLAG</excludedElementName>
+      <excludedElementName>ERNAM</excludedElementName>
+      <excludedElementName>ERDAT</excludedElementName>
+      <excludedElementName>AENAM</excludedElementName>
+      <excludedElementName>AEDAT</excludedElementName>
+      <excludedElementName>MPL_NODE</excludedElementName>
+      <excludedElementName>ASCOD</excludedElementName>
+      <excludedElementName>VDIR</excludedElementName>
+      <excludedElementName>DOKNR</excludedElementName>
+      <excludedElementName>DOKAR</excludedElementName>
+      <excludedElementName>DOKTL</excludedElementName>
+      <excludedElementName>DOKVR</excludedElementName>
+      <layout xCoordinate="18036" yCoordinate="202"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF::R_SD_SF_D_G_DRAD_LINK_ZMO</entity>
+      <mapping xsi:type="View:InputMapping" targetName="DOKAR" sourceName="DOKAR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="DOKNR" sourceName="DOKNR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="DOKVR" sourceName="DOKVR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="DOKTL" sourceName="DOKTL" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="ZMO_DOKOB" sourceName="DOKOB">
+        <targetEndUserTexts label="Linked SAP OB"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="ZMO_OBZAE" sourceName="OBZAE">
+        <targetEndUserTexts label="ZMO_OBZAE"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="ZMO_OBJKY" sourceName="OBJKY">
+        <targetEndUserTexts label="ZMO_OBJKY"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="ZMO_VRKSTAT" sourceName="VRKSTAT">
+        <targetEndUserTexts label="ZMO_VRKSTAT"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="ZMO_VRKSTAT1" sourceName="VRKSTAT1">
+        <targetEndUserTexts label="ZMO_VRKSTAT1"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="ZMO_VOBJ" sourceName="VOBJ">
+        <targetEndUserTexts label="ZMO_VOBJ"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="ZMO_VKEY" sourceName="VKEY">
+        <targetEndUserTexts label="ZMO_VKEY"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="ZMO_VDIR" sourceName="VDIR">
+        <targetEndUserTexts label="ZMO_VDIR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="ZMO_VIEWFLAG" sourceName="VIEWFLAG">
+        <targetEndUserTexts label="ZMO_VIEWFLAG"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="ZMO_DELFLAG" sourceName="DELFLAG">
+        <targetEndUserTexts label="_ZMO_DELFLAG"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="ZMO_LONGTEXT_ID" sourceName="LONGTEXT_ID">
+        <targetEndUserTexts label="ZMO_LONGTEXT_ID"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="ZMO_CAD_POS" sourceName="CAD_POS">
+        <targetEndUserTexts label="ZMO_CAD_POS"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="ZMO_CM_FIXED" sourceName="CM_FIXED">
+        <targetEndUserTexts label="ZMO_CM_FIXED"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="ZMO_DOKAR" sourceName="DOKAR">
+        <targetEndUserTexts label="ZMO_DOKAR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="ZMO_DOKNR" sourceName="DOKNR">
+        <targetEndUserTexts label="ZMO_DOKNR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="ZMO_DOKVR" sourceName="DOKVR">
+        <targetEndUserTexts label="ZMO_DOKVR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="ZMO_DOKTL" sourceName="DOKTL">
+        <targetEndUserTexts label="ZMO_DOKTL"/>
+      </mapping>
+      <excludedElementName>DOKAR</excludedElementName>
+      <excludedElementName>DOKNR</excludedElementName>
+      <excludedElementName>DOKVR</excludedElementName>
+      <excludedElementName>DOKTL</excludedElementName>
+      <layout xCoordinate="18489" yCoordinate="340"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_FLEET_TYPE</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_FLEET_TYPE_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_FLEET_TYPE_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <excludedElementName>CUOBJ</excludedElementName>
+      <layout xCoordinate="18832" yCoordinate="30"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_ZPARTSPEC</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_ZPARTSPEC_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_ZPARTSPEC_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <layout xCoordinate="19822" yCoordinate="136"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_CTRL_GROUP</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_CTRL_GROUP_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_CTRL_GROUP_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <layout xCoordinate="19805" yCoordinate="30"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_POOL_PROVIDER</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_POOL_PROVIDER_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_POOL_PROVIDER_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <layout xCoordinate="19782" yCoordinate="244"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_PSAP</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_PSAP_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_PSAP_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <layout xCoordinate="19835" yCoordinate="358"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_PS_FAMILY</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_PS_FAMILY_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_PS_FAMILY_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <layout xCoordinate="20587" yCoordinate="27"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_PS_SUPER_FAMILY</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_PS_SUPER_FAMILY_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_PS_SUPER_FAMILY_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <layout xCoordinate="20442" yCoordinate="283"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_CODENR</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_CODENR_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_CODENR_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <layout xCoordinate="20567" yCoordinate="157"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF::R_SD_SF_D_G_DRAD_SMQMEL</entity>
+      <mapping xsi:type="View:InputMapping" targetName="DOKAR" sourceName="DOKAR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="DOKNR" sourceName="DOKNR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="DOKVR" sourceName="DOKVR" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="View:InputMapping" targetName="DOKTL" sourceName="DOKTL" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_OBJKY" sourceName="OBJKY">
+        <targetEndUserTexts label="Notif (Object Key DRAD)"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_DOKOB" sourceName="DOKOB">
+        <targetEndUserTexts label="DRAD_DOKOB"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_DOKAR" sourceName="DOKAR">
+        <targetEndUserTexts label="DRAD_DOKAR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_DOKNR" sourceName="DOKNR">
+        <targetEndUserTexts label="DRAD_DOKNR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_DOKVR" sourceName="DOKVR">
+        <targetEndUserTexts label="DRAD_DOKVR"/>
+      </mapping>
+      <mapping xsi:type="Type:ElementMapping" targetName="DRAD_DOKTL" sourceName="DOKTL">
+        <targetEndUserTexts label="DRAD_DOKTL"/>
+      </mapping>
+      <excludedElementName>DOKAR</excludedElementName>
+      <excludedElementName>DOKNR</excludedElementName>
+      <excludedElementName>DOKVR</excludedElementName>
+      <excludedElementName>DOKTL</excludedElementName>
+      <layout xCoordinate="21094" yCoordinate="30"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_MAIN_WH_LOCATION</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_MAIN_WH_LOCATION_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_MAIN_WH_LOCATION_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <layout xCoordinate="21479" yCoordinate="30"/>
+    </input>
+    <input selectAll="true">
+      <entity>#//EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_MTX_PART_GRP_CODE</entity>
+      <mapping xsi:type="View:InputMapping" targetName="OBJEK" sourceName="ZZ_OBJEK" sourceInput="#//Star Join/P_DRAW"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_MTX_PART_GRP_CODE_OBJEK" sourceName="OBJEK"/>
+      <mapping xsi:type="Type:ElementMapping" targetName="R_MD_CL_G_D_CARACT_Z_MTX_PART_GRP_CODE_ATNAM" sourceName="ATNAM"/>
+      <excludedElementName>OBJEK</excludedElementName>
+      <excludedElementName>ATNAM</excludedElementName>
+      <layout xCoordinate="22011" yCoordinate="30"/>
+    </input>
+    <layout xCoordinate="22" yCoordinate="87" width="669" height="840" expanded="true"/>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF::R_SD_SF_D_G_AXONMBX_DRWEFF" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>DOKAR</leftElementName>
+      <leftElementName>DOKNR</leftElementName>
+      <leftElementName>DOKTL</leftElementName>
+      <leftElementName>DOKVR</leftElementName>
+      <rightElementName>DOKAR</rightElementName>
+      <rightElementName>DOKNR</rightElementName>
+      <rightElementName>DOKTL</rightElementName>
+      <rightElementName>DOKVR</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF::R_SD_SF_D_G_AXONXAPP_DRWEMB" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>DOKNR</leftElementName>
+      <leftElementName>DOKAR</leftElementName>
+      <leftElementName>DOKTL</leftElementName>
+      <leftElementName>DOKVR</leftElementName>
+      <rightElementName>DOKNR</rightElementName>
+      <rightElementName>DOKAR</rightElementName>
+      <rightElementName>DOKTL</rightElementName>
+      <rightElementName>DOKVR</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF::R_SD_SF_D_G_AXONXAPP_DRWEXT" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>DOKNR</leftElementName>
+      <leftElementName>DOKAR</leftElementName>
+      <leftElementName>DOKTL</leftElementName>
+      <leftElementName>DOKVR</leftElementName>
+      <rightElementName>DOKNR</rightElementName>
+      <rightElementName>DOKAR</rightElementName>
+      <rightElementName>DOKTL</rightElementName>
+      <rightElementName>DOKVR</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF::R_SD_SF_D_G_DRWREL_DRAD_ZPL" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>DOKNR</leftElementName>
+      <leftElementName>DOKAR</leftElementName>
+      <leftElementName>DOKTL</leftElementName>
+      <leftElementName>DOKVR</leftElementName>
+      <rightElementName>SUBDOKNR</rightElementName>
+      <rightElementName>SUBDOKAR</rightElementName>
+      <rightElementName>SUBDOKTL</rightElementName>
+      <rightElementName>SUBDOKVR</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF::R_SD_SF_D_G_DRAD_HIER_PNODID" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>DOKAR</leftElementName>
+      <leftElementName>DOKNR</leftElementName>
+      <leftElementName>DOKVR</leftElementName>
+      <leftElementName>DOKTL</leftElementName>
+      <rightElementName>DOKAR</rightElementName>
+      <rightElementName>DOKNR</rightElementName>
+      <rightElementName>DOKVR</rightElementName>
+      <rightElementName>DOKTL</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF::R_SD_SF_D_G_DRAT" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>DOKAR</leftElementName>
+      <leftElementName>DOKNR</leftElementName>
+      <leftElementName>DOKVR</leftElementName>
+      <leftElementName>DOKTL</leftElementName>
+      <rightElementName>DOKAR</rightElementName>
+      <rightElementName>DOKNR</rightElementName>
+      <rightElementName>DOKVR</rightElementName>
+      <rightElementName>DOKTL</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF::R_SD_SF_D_G_PLKO" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>DOKNR</leftElementName>
+      <leftElementName>DOKAR</leftElementName>
+      <leftElementName>DOKVR</leftElementName>
+      <leftElementName>DOKTL</leftElementName>
+      <rightElementName>CURRENT_DOCNO</rightElementName>
+      <rightElementName>CURRENT_DOCTYP</rightElementName>
+      <rightElementName>CURRENT_DOCVR</rightElementName>
+      <rightElementName>CURRENT_DOCTL</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF::R_SD_SF_D_G_AXONXAPP_CU04B" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>DOKAR</leftElementName>
+      <rightElementName>DOKAR</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF::R_SD_SF_D_G_AXONXAPP_DRWPPG" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>DOKAR</leftElementName>
+      <leftElementName>DOKNR</leftElementName>
+      <leftElementName>DOKTL</leftElementName>
+      <leftElementName>DOKVR</leftElementName>
+      <rightElementName>DOKAR</rightElementName>
+      <rightElementName>DOKNR</rightElementName>
+      <rightElementName>DOKTL</rightElementName>
+      <rightElementName>DOKVR</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_WARRANTY_END_DATE" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_AC_SB_REV" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_AD_REF" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_AD_REL" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_AD_REV" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_AD_TEXT" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_AEO" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_AEO_REV" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_AMDT" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_CMM_ATA" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_CMM_DATE" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_CMM_EDITOR" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_CMM_REF" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_CMM_REV_NO" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_DEVISE" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_DOC_REC" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_DOC_REF" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_DOC_TYPE" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_DOC_VER" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_DTD" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_DTD_REV" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_EASA_RATING" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_ETOPS" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_FOC_END_DATE" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_MAN_REF" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_MOD_AC" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_MOD_COST" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_SB" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_SUPPLEMENT_PAGE" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF::R_SD_SF_D_G_AXONXAPP_DRWMPR" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>DOKNR</leftElementName>
+      <leftElementName>DOKAR</leftElementName>
+      <leftElementName>DOKTL</leftElementName>
+      <leftElementName>DOKVR</leftElementName>
+      <rightElementName>POLDOKNR</rightElementName>
+      <rightElementName>POLDOKAR</rightElementName>
+      <rightElementName>POLDOKTL</rightElementName>
+      <rightElementName>POLDOKVR</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF::R_SD_SF_D_G_AXONXAPP_DRWREL" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>DOKNR</leftElementName>
+      <leftElementName>DOKAR</leftElementName>
+      <leftElementName>DOKTL</leftElementName>
+      <leftElementName>DOKVR</leftElementName>
+      <rightElementName>SUBDOKNR</rightElementName>
+      <rightElementName>SUBDOKAR</rightElementName>
+      <rightElementName>SUBDOKTL</rightElementName>
+      <rightElementName>SUBDOKVR</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF::R_SD_SF_D_G_AXONMBX_SOFT_TI" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>DOKNR</leftElementName>
+      <leftElementName>DOKAR</leftElementName>
+      <leftElementName>DOKTL</leftElementName>
+      <leftElementName>DOKVR</leftElementName>
+      <rightElementName>DOKNR</rightElementName>
+      <rightElementName>DOKAR</rightElementName>
+      <rightElementName>DOKTL</rightElementName>
+      <rightElementName>DOKVR</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF::R_SD_SF_D_G_LIFERU_DRWEXT_DRWMPR_SOFT_TI" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>DOKNR</leftElementName>
+      <leftElementName>DOKAR</leftElementName>
+      <leftElementName>DOKTL</leftElementName>
+      <leftElementName>DOKVR</leftElementName>
+      <rightElementName>DOKNR</rightElementName>
+      <rightElementName>DOKAR</rightElementName>
+      <rightElementName>DOKTL</rightElementName>
+      <rightElementName>DOKVR</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF::R_SD_SF_D_G_AXONXAPP_DRWREL_ZPS" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>DOKNR</leftElementName>
+      <leftElementName>DOKAR</leftElementName>
+      <leftElementName>DOKTL</leftElementName>
+      <leftElementName>DOKVR</leftElementName>
+      <rightElementName>DOKNR</rightElementName>
+      <rightElementName>DOKAR</rightElementName>
+      <rightElementName>DOKTL</rightElementName>
+      <rightElementName>DOKVR</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF::R_SD_SF_D_G_DRAD_LINK_ZMO" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>DOKAR</leftElementName>
+      <leftElementName>DOKNR</leftElementName>
+      <leftElementName>DOKVR</leftElementName>
+      <leftElementName>DOKTL</leftElementName>
+      <rightElementName>DOKAR</rightElementName>
+      <rightElementName>DOKNR</rightElementName>
+      <rightElementName>DOKVR</rightElementName>
+      <rightElementName>DOKTL</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_FLEET_TYPE" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_ZPARTSPEC" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_CTRL_GROUP" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_POOL_PROVIDER" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_PSAP" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_PS_FAMILY" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_PS_SUPER_FAMILY" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_CODENR" joinType="leftOuter" dimensionJoin="true" optimizeJoinColumns="false">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF::R_SD_SF_D_G_DRAD_SMQMEL" joinType="leftOuter" dimensionJoin="true">
+      <leftElementName>DOKAR</leftElementName>
+      <leftElementName>DOKNR</leftElementName>
+      <leftElementName>DOKVR</leftElementName>
+      <leftElementName>DOKTL</leftElementName>
+      <rightElementName>DOKAR</rightElementName>
+      <rightElementName>DOKNR</rightElementName>
+      <rightElementName>DOKVR</rightElementName>
+      <rightElementName>DOKTL</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_MAIN_WH_LOCATION" joinType="leftOuter" dimensionJoin="true">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+    <join leftInput="#//Star Join/P_DRAW" rightInput="#//Star Join/EMPOWER.ZY_SD_SF.ZY_EO_CARACT::R_MD_CL_G_D_CARACT_Z_MTX_PART_GRP_CODE" joinType="leftOuter" dimensionJoin="true">
+      <leftElementName>ZZ_OBJEK</leftElementName>
+      <rightElementName>OBJEK</rightElementName>
+    </join>
+  </viewNode>
+  <viewLayout relativeWidthScenario="40"/>
+</View:ColumnView>

@@ -65,6 +65,9 @@ RUN mkdir -p /data/outputs /etc/license.d /host/etc /host/sys/class/dmi/id \
 # -----------------------------------------------------------------------------
 ENV LICENSE_HOST_MACHINE_ID_PATH=/host/etc/machine-id
 ENV LICENSE_HOST_DMI_UUID_PATH=/host/sys/class/dmi/id/product_uuid
+# Where the verifier looks for license.json inside the container.
+# docker-compose.enterprise.yml mounts a host file at this path.
+ENV LICENSE_PATH=/etc/license.d/license.json
 
 # Standard env
 ENV PYTHONUNBUFFERED=1 \

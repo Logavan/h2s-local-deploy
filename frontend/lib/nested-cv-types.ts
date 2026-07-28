@@ -10,6 +10,16 @@ export type NestedPhase =
   | "done"
   | "error"
 
+export type GenerationPhase =
+  | "starting"
+  | "validating"
+  | "rendering"
+  | "rendered"
+  | "composing"
+  | "finalizing"
+  | "complete"
+  | "failed"
+
 export type OutputFormat = "sql" | "pyspark"
 
 export type EmissionMode = "inline_cte" | "emit_view"
@@ -164,11 +174,14 @@ export interface GenerateResponse {
 
 export interface TaskStatusResponse {
   task_id: string
+  session_id?: string
   status: NestedTask["status"]
   progress: number
   message: string
+  phase?: GenerationPhase
   result_url?: string
   result_content?: string
   output_format?: OutputFormat
+  result_filename?: string
   diagnostics: Diagnostic[]
 }

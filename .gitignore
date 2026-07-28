@@ -118,6 +118,14 @@ data/outputs/*
 license.json
 backend/license.json
 
+# Vendor private key directory (offline signing keys)
+vendor-keys/
+
+# The bundled vendor public key is the ONE .pem we DO want to commit.
+# The generic `*.pem` rule above catches everything else (private keys,
+# customer certs, ad-hoc OpenSSL output). Force-add this one explicitly.
+!backend/licensing/keys/public.pem
+
 # Backend sample data files (decrypted sample workbooks)
 backend/Sample_*.xlsx
 backend/Sample_*.xls

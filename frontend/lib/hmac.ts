@@ -7,6 +7,8 @@
 // license gate has succeeded. The key is held in memory only — never written
 // to localStorage or sessionStorage (XSS extraction resistance).
 
+import { config } from "./config"
+
 const KEY_CACHE: { key: string | null; fetchedAt: number } = {
   key: null,
   fetchedAt: 0,
@@ -18,13 +20,10 @@ async function getSigningKey(): Promise<string> {
   if (KEY_CACHE.key && now - KEY_CACHE.fetchedAt < KEY_TTL_MS) {
     return KEY_CACHE.key;
   }
-  // Public health-style endpoint that returns the key in plain text. In a
-  // production deployment this should be served over HTTPS only and rate
-  // limited. The backend already requires a valid license to serve traffic,
-  // so leaking this key to anyone who already has a valid license is
-  // acceptable.
-  const apiBase =
-    process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
+  // Use the same baseUrl as the rest of the frontend so the key fetch stays
+  // same-origin (Next.js rewrites proxy /api/* → backend in dev). Going
+  // cross-origin here trips CORS preflights against H2S_ALLOWED_ORIGINS.
+  const apiBase = config.api.baseUrl;
   const res = await fetch(`${apiBase}/api/hmac/key`, {
     credentials: "include",
   });

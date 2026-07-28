@@ -67,9 +67,8 @@ h2s-local-deploy/
 │   │   ├── artifact_parser.py    # CV JSON mapping workbook parser
 │   │   ├── dependency_graph.py  # DAG construction, topological sort
 │   │   ├── mapping_service.py   # Mapping deduplication and conflict detection
-│   │   ├── sql_composer.py      # SQL composition with CTE namespace rewriting
-│   │   ├── pyspark_composer.py  # PySpark DataFrame composition
-│   │   └── tasks.py             # Async generation task lifecycle
+│   │   ├── tasks.py             # Async generation task lifecycle (single → mapping_sql_generator; multi → orchestrator)
+│   │   └── orchestrator.py      # Multi-artifact chaining (CTE / HANA table-function / PySpark)
 │   ├── config/
 │   │   └── settings.py          # Environment variable config (GEMINI_API_KEY required)
 │   └── requirements.txt         # Python dependencies
@@ -127,6 +126,8 @@ docker-compose -f docker-compose.enterprise.yml up --build
 | Variable | Required | Default | Purpose |
 |----------|----------|---------|---------|
 | `GEMINI_API_KEY` | **Yes** | — | Google AI Studio key. App raises `ValueError` at startup if missing. |
+| `H2S_HMAC_KEY` | No | ephemeral random | 32-byte base64 HMAC signing key. Stable across restarts only when set. |
+| `H2S_ALLOWED_ORIGINS` | Conditional | `*` in dev only | Comma-separated browser origins. Required in production — app refuses to start otherwise. |
 | `OUTPUT_DIR` | No | `<backend>/../data/outputs` | Where conversion ZIPs are stored permanently |
 | `PREVIOUS_CONVERSIONS_DIR` | No | Falls back to `OUTPUT_DIR` | Separate dir for "Select from History" |
 
@@ -135,6 +136,10 @@ docker-compose -f docker-compose.enterprise.yml up --build
 | Variable | Value |
 |----------|-------|
 | `NEXT_PUBLIC_API_BASE_URL` | `http://localhost:8080` |
+
+## Licensing
+
+Every deployment — local or production — needs a vendor-signed `license.json` bound to the host's machine fingerprint. There is no dev-mode bypass or skip flag. The repo ships `laptop-license.json` at the root bound to the original developer's laptop; for any other host (your second laptop, a customer's VM), get a new license signed by the vendor. See `backend/licensing/claude.md` for the full flow.
 
 ## Output Storage
 

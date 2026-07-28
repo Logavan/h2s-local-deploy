@@ -32,6 +32,7 @@ import base64
 import hashlib
 import hmac
 import os
+import re
 import time
 from datetime import datetime, timezone
 from functools import wraps
@@ -40,20 +41,49 @@ from typing import Callable, Optional
 from flask import current_app, jsonify, request
 
 # Routes that do not require HMAC signing (public health/debug endpoints)
+# matched by path prefix.
 _SIGNATURE_EXEMPT_PREFIXES = (
     "/health",
     "/api/status",
     "/api/hmac/key",  # frontend must fetch this BEFORE it has a key
+    "/api/bulk-analyze",  # multipart upload — see _SIGNATURE_EXEMPT_REGEX comment
+    "/api/mapping/upload_and_generate_schema",  # multipart upload
     "/container-shutdown",
     "/debug-latency",
+)
+# Routes exempt from HMAC matched by regex (dynamic path segments).
+# Why multipart upload routes are exempt: the frontend cannot deterministically
+# reproduce the multipart byte stream that Flask receives on the server side
+# (the browser controls boundary strings, ordering, and CRLF normalization when
+# serialising FormData). Signing `sha256("")` on the frontend while the
+# backend signs `sha256(<full multipart payload>)` produces a permanent
+# mismatch. These routes compensate with an Origin/Referer gate in
+# `install_hmac_middleware` (see `_enforce_origin_for_upload`).
+_SIGNATURE_EXEMPT_REGEX = (
+    re.compile(r"^/api/nested/sessions/[^/]+/cvs/xlsx$"),
 )
 # Routes that ALWAYS require HMAC (everything under /api/* except the exempt list)
 _SIGNATURE_REQUIRED_PREFIXES = (
     "/api/",
 )
 
+# Same set of routes as the multipart exemptions above, kept separately so the
+# middleware can gate them with an Origin check after HMAC is skipped.
+_MULTIPART_UPLOAD_EXACT = frozenset({
+    "/api/bulk-analyze",
+    "/api/mapping/upload_and_generate_schema",
+})
+_MULTIPART_UPLOAD_REGEX = (
+    re.compile(r"^/api/nested/sessions/[^/]+/cvs/xlsx$"),
+)
+
 # Tolerance window for timestamp skew — 5 minutes in either direction
 _TIMESTAMP_TOLERANCE_SECONDS = 300
+
+# Dev fallback: when no real key is configured, generate one ephemeral key
+# and reuse it for the whole process. Otherwise `/api/hmac/key` would hand
+# out key A while the middleware uses key B on the next request.
+_EPHEMERAL_KEY_CACHE: Optional[bytes] = None
 
 
 class HMACVerificationError(Exception):
@@ -112,7 +142,59 @@ def verify_request(key: bytes, max_skew_seconds: int = _TIMESTAMP_TOLERANCE_SECO
 def _route_requires_signature(path: str) -> bool:
     if any(path.startswith(p) for p in _SIGNATURE_EXEMPT_PREFIXES):
         return False
+    if any(pat.match(path) for pat in _SIGNATURE_EXEMPT_REGEX):
+        return False
     return any(path.startswith(p) for p in _SIGNATURE_REQUIRED_PREFIXES)
+
+
+def _is_multipart_upload(path: str) -> bool:
+    """True if `path` is a multipart upload route (HMAC-skipped, Origin-gated)."""
+    if path in _MULTIPART_UPLOAD_EXACT:
+        return True
+    return any(pat.match(path) for pat in _MULTIPART_UPLOAD_REGEX)
+
+
+def _enforce_origin_for_upload(app):
+    """Reject multipart upload requests whose Origin/Referer is not on the
+    CORS allowlist. Returns a Flask response on rejection, else None.
+
+    HMAC is skipped on multipart upload routes because the frontend cannot
+    deterministically reproduce the multipart byte stream when signing. To
+    compensate we apply an Origin/Referer gate against the same allowlist
+    used by flask-cors (mirrors the pattern in `get_hmac_key`).
+    """
+    allowed = app.config.get("H2S_ALLOWED_ORIGINS", set())
+    # Permissive-dev mode (set when H2S_ALLOWED_ORIGINS is unset locally):
+    # allow any origin / no origin so curl + tests still work.
+    if allowed == {"*"} and not os.getenv("K_SERVICE"):
+        return None
+
+    request_origin = request.headers.get("Origin")
+    referer = request.headers.get("Referer", "")
+    request_host = request.host_url.rstrip("/")
+
+    same_origin = bool(request_origin) and (
+        request_origin.rstrip("/") == request_host
+    )
+    on_allowlist = bool(request_origin) and (request_origin in allowed)
+    if same_origin or on_allowlist:
+        return None
+
+    if referer:
+        from urllib.parse import urlparse
+        ref_origin = f"{urlparse(referer).scheme}://{urlparse(referer).netloc}"
+        if ref_origin in allowed or ref_origin.rstrip("/") == request_host:
+            return None
+        return jsonify({
+            "error": "Origin not allowed for upload endpoint"
+        }), 403
+
+    # No Origin AND no Referer — block in production, allow in dev (curl).
+    if not os.getenv("K_SERVICE"):
+        return None
+    return jsonify({
+        "error": "Origin not allowed for upload endpoint"
+    }), 403
 
 
 def _get_signing_key() -> bytes:
@@ -157,13 +239,18 @@ def _get_signing_key() -> bytes:
         with open(file_path, "r", encoding="utf-8") as fh:
             return _maybe_b64(fh.read().strip())
 
-    # 4. Dev fallback — log a loud warning so this never ships silently
-    current_app.logger.warning(
-        "[HMAC] No signing key configured (no license.secrets.hmac_key, no "
-        "H2S_HMAC_KEY, no H2S_HMAC_KEY_FILE). Generating ephemeral key. "
-        "This is INSECURE and must not be used in production."
-    )
-    return hashlib.sha256(os.urandom(32)).digest()
+    # 4. Dev fallback — log a loud warning so this never ships silently.
+    # Cache the generated key for the process lifetime so the value served
+    # by `/api/hmac/key` matches the value the middleware uses to verify.
+    global _EPHEMERAL_KEY_CACHE
+    if _EPHEMERAL_KEY_CACHE is None:
+        current_app.logger.warning(
+            "[HMAC] No signing key configured (no license.secrets.hmac_key, no "
+            "H2S_HMAC_KEY, no H2S_HMAC_KEY_FILE). Generating ephemeral key. "
+            "This is INSECURE and must not be used in production."
+        )
+        _EPHEMERAL_KEY_CACHE = hashlib.sha256(os.urandom(32)).digest()
+    return _EPHEMERAL_KEY_CACHE
 
 
 def install_hmac_middleware(app) -> None:
@@ -171,7 +258,21 @@ def install_hmac_middleware(app) -> None:
 
     @app.before_request
     def _enforce_hmac_on_protected_routes():
+        # CORS preflight (OPTIONS) requests come from the browser without our
+        # X-H2S-* headers — flask-cors answers them, not us.
+        if request.method == "OPTIONS":
+            return None
         if not _route_requires_signature(request.path):
+            # Multipart uploads are skipped from HMAC (see _SIGNATURE_EXEMPT_*
+            # comments) but still need an Origin/Referer gate to prevent
+            # CSRF — a hostile page could otherwise trigger conversions with
+            # attacker-supplied files. The Origin check uses the same
+            # allowlist as flask-cors, so configuring H2S_ALLOWED_ORIGINS in
+            # production covers both layers.
+            if _is_multipart_upload(request.path):
+                upload_resp = _enforce_origin_for_upload(app)
+                if upload_resp is not None:
+                    return upload_resp
             return None
         try:
             key = _get_signing_key()

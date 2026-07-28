@@ -3,9 +3,48 @@
 
 // Dynamic API URL based on environment variables
 import { config } from "./config"
+import { signRequest } from "./hmac"
 
 const getApiBaseUrl = (): string => {
   return config.api.baseUrl!
+}
+
+// Mirror of backend/hmac_auth.py _SIGNATURE_EXEMPT_* — paths the
+// backend never requires HMAC headers on, so the frontend can skip the
+// signing fetch round-trip.
+const SIGNATURE_EXEMPT_PREFIXES = [
+  "/health",
+  "/api/status",
+  "/api/hmac/key",
+  "/api/bulk-analyze",
+  "/api/mapping/upload_and_generate_schema",
+  "/container-shutdown",
+  "/debug-latency",
+]
+
+// Multipart upload routes whose path includes a dynamic segment (session_id).
+// Kept in sync with `_SIGNATURE_EXEMPT_REGEX` in backend/hmac_auth.py.
+const SIGNATURE_EXEMPT_REGEX: RegExp[] = [
+  /^\/api\/nested\/sessions\/[^/]+\/cvs\/xlsx$/,
+]
+
+function pathNeedsSignature(pathname: string): boolean {
+  if (SIGNATURE_EXEMPT_PREFIXES.some((p) => pathname.startsWith(p))) {
+    return false
+  }
+  if (SIGNATURE_EXEMPT_REGEX.some((re) => re.test(pathname))) {
+    return false
+  }
+  return pathname.startsWith("/api/")
+}
+
+function extractPathname(url: string): string {
+  try {
+    return new URL(url, typeof window !== "undefined" ? window.location.origin : "http://localhost").pathname
+  } catch {
+    // Fallback: strip query/fragment manually if URL parsing fails.
+    return url.split("?")[0].split("#")[0]
+  }
 }
 
 // Health check to verify backend is reachable
@@ -24,8 +63,8 @@ export async function checkBackendHealth(): Promise<boolean> {
 
 // Enhanced fetch with timeout, retry logic, and better error handling
 async function fetchWithTimeout(
-  url: string, 
-  options: RequestInit = {}, 
+  url: string,
+  options: RequestInit = {},
   timeout = 30000,
   retries = 3,
   retryDelay = 1000
@@ -33,8 +72,36 @@ async function fetchWithTimeout(
   const controller = new AbortController()
   const id = setTimeout(() => controller.abort("Request timed out"), timeout)
 
+  // Attach HMAC headers when the backend expects a signature. The signing
+  // helper handles key fetching + 5-min caching internally.
+  const pathname = extractPathname(url)
+  const baseHeaders: Record<string, string> = {}
+  if (pathNeedsSignature(pathname)) {
+    const method = (options.method ?? "GET").toUpperCase()
+    const bodyStr =
+      typeof options.body === "string"
+        ? options.body
+        : options.body == null
+          ? ""
+          : // Multipart (FormData / Blob) requests are HMAC-exempt on the
+            // backend (see _SIGNATURE_EXEMPT_REGEX in hmac_auth.py) because
+            // the frontend cannot deterministically reproduce the
+            // multipart byte stream. No body is hashed because no
+            // signature is computed on these paths.
+            ""
+    const sigHeaders = await signRequest(method, pathname, bodyStr)
+    Object.assign(baseHeaders, sigHeaders)
+  }
+
+  // Merge any caller-supplied headers with the signed ones.
+  const mergedHeaders: Record<string, string> = {
+    ...((options.headers as Record<string, string> | undefined) ?? {}),
+    ...baseHeaders,
+  }
+
   const fetchOptions = {
     ...options,
+    headers: mergedHeaders,
     signal: controller.signal,
   }
 

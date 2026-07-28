@@ -49,6 +49,8 @@ export interface FlowBuilderProps {
   mainLabel: string
   mainBackendId?: string
   mainLinkedSources?: LinkedSource[]
+  /** Own mapping-info row count for the main (root) CV. Drives the "N mappings" badge. */
+  mainMappingCount?: number
   bases: FlowBase[]
   onMappingClick: (nodeId: string, mappingType: "Column Mapping" | "Table Mapping") => void
   onRemoveBase: (nodeId: string) => void
@@ -73,6 +75,7 @@ export default function FlowBuilder({
   mainLabel,
   mainBackendId,
   mainLinkedSources,
+  mainMappingCount,
   bases,
   onMappingClick,
   onRemoveBase,
@@ -81,14 +84,14 @@ export default function FlowBuilder({
   onToggleLink,
   height = 480,
 }: FlowBuilderProps) {
-  const [nodes, setNodes] = useState<FlowNode[]>(() => buildInitialNodes(mainLabel, mainBackendId, mainLinkedSources, bases))
+  const [nodes, setNodes] = useState<FlowNode[]>(() => buildInitialNodes(mainLabel, mainBackendId, mainLinkedSources, mainMappingCount, bases))
   const [edges, setEdges] = useState<Edge[]>(() => buildInitialEdges(bases, mainBackendId).filter(e => e.source !== e.target))
 
   // Sync local state with props when bases actually change - preserve existing positions
   const basesKey = JSON.stringify(bases)
   useEffect(() => {
     setNodes(prevNodes => {
-      const newNodes = buildInitialNodes(mainLabel, mainBackendId, mainLinkedSources, bases)
+      const newNodes = buildInitialNodes(mainLabel, mainBackendId, mainLinkedSources, mainMappingCount, bases)
       // Preserve existing node positions for nodes that still exist
       return newNodes.map(newNode => {
         const existing = prevNodes.find(p => p.id === newNode.id)
@@ -100,7 +103,7 @@ export default function FlowBuilder({
     })
     setEdges(buildInitialEdges(bases, mainBackendId).filter(e => e.source !== e.target))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mainLabel, mainBackendId, mainLinkedSources, basesKey])
+  }, [mainLabel, mainBackendId, mainLinkedSources, mainMappingCount, basesKey])
 
   const onNodesChange = useCallback((changes: NodeChange[]) => setNodes(nds => applyNodeChanges(changes, nds) as FlowNode[]), [])
   const onEdgesChange = useCallback((changes: EdgeChange[]) => setEdges(eds => applyEdgeChanges(changes, eds)), [])
@@ -279,7 +282,7 @@ function calculateBasePosition(
   }
 }
 
-function buildInitialNodes(mainLabel: string, mainBackendId: string | undefined, mainLinkedSources: LinkedSource[] | undefined, bases: FlowBuilderProps["bases"]): FlowNode[] {
+function buildInitialNodes(mainLabel: string, mainBackendId: string | undefined, mainLinkedSources: LinkedSource[] | undefined, mainMappingCount: number | undefined, bases: FlowBuilderProps["bases"]): FlowNode[] {
   const mainNode: FlowNode = {
     id: MAIN_ID,
     type: "calculationNode",
@@ -292,7 +295,9 @@ function buildInitialNodes(mainLabel: string, mainBackendId: string | undefined,
       backendId: mainBackendId,
       isResolved: true,
       linkedSources: mainLinkedSources,
-      mappingCount: bases.reduce((sum, b) => sum + (b.linkedSources?.length || 0), 0),
+      // Main's own mapping_info row count — keeps the rule "each node's badge
+      // = its own mapping_rows.length" consistent across main and base nodes.
+      mappingCount: mainMappingCount ?? 0,
       depth: 0,
     },
   }
@@ -344,7 +349,14 @@ function buildInitialEdges(bases: FlowBuilderProps["bases"], mainBackendId?: str
     .filter(base => base.parentId && knownIds.has(base.parentId) && base.parentId !== base.id)
     .map(base => ({
       id: `e-${base.parentId}-${base.id}`,
-      source: base.parentId as string,
+      // Translate mainBackendId to the visual MAIN_ID so ReactFlow can resolve
+      // the source node. The main node's `id` in ReactFlow is MAIN_ID
+      // ("main-view"), but base.parentId for first-level nested CVs is the
+      // root artifact's backend id. Without this translation, ReactFlow drops
+      // the edge because no node has the artifact id as its id — and in a
+      // multi-level chain (sales_fact → intermediate → base), the first edge
+      // would be silently missing even though the second renders.
+      source: base.parentId === mainBackendId ? MAIN_ID : base.parentId as string,
       target: base.id,
       ...edgeDefaults,
       label: base.sourceRef && base.sourceRef.length > 0 ? base.sourceRef : undefined,

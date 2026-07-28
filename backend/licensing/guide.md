@@ -283,7 +283,7 @@ docker run -d \
 | Windows Server / desktop  | ✅         | Reads `MachineGuid` from the registry. Survives reboots, NIC swaps, even most Windows updates. |
 | macOS workstation         | ✅         | Reads `IOPlatformUUID`. (Less common — Docker-on-macOS is dev-only.)                       |
 | AWS / GCP / Azure VM      | ✅         | Cloud-init regenerates `/etc/machine-id` per instance — same model as any Linux VM.        |
-| Local dev / laptop, ephemeral container | ✅         | Use `H2S_SKIP_LICENSE=1`. Never set this in production.                                  |
+| Local dev / laptop (Docker or bare-metal) | ✅         | Same code path as production. The dev laptop must have its own vendor-signed license (`laptop-license.json` bound to its fingerprint). There is no skip flag or dev-mode bypass. |
 
 ### 6.4 What is *not* used as a primary identifier, and why
 
@@ -335,7 +335,7 @@ These are the scenarios you will actually encounter. Every one has a clear resol
 | NIC was replaced                                        | Same as above (MAC is part of the fingerprint).                  |
 | OS was reinstalled                                      | Same as above (machine-id regenerates).                          |
 | Customer accidentally copied license.json to a second box | **This is the system working as intended.** They need a second license. |
-| Dev environment was cloned from production              | The dev clone needs its own license, or run with `H2S_SKIP_LICENSE=1` for local dev. |
+| Dev environment was cloned from production              | The dev clone needs its own vendor-signed license (run `python -m licensing info` on the dev host and request a fresh signing). There is no skip flag. |
 | **Docker: host-bind mounts missing**                    | Add the three bind mounts shown in §6.1 to `docker-compose.yml` and restart. The app will then read the host's machine-id instead of the ephemeral container ID. |
 | **Docker: image moved to a new VM**                     | Same as "moved the app to a new VM" above — host machine-id changed, request a rebind. |
 
@@ -343,7 +343,7 @@ These are the scenarios you will actually encounter. Every one has a clear resol
 
 **Cause:** the host's primary identifier keeps changing (e.g. a container that restarts with a fresh ID every time).
 
-**Fix:** for production deployments, bind the license to a *persistent* host (a VM, a bare-metal server, a Kubernetes node) rather than to an ephemeral container. Short-lived dev containers should use `H2S_SKIP_LICENSE=1`.
+**Fix:** bind the license to a *persistent* host (a VM, a bare-metal server, a Kubernetes node) rather than to an ephemeral container. Add the three bind mounts shown in §6.1 to `docker-compose.yml` and restart. Short-lived dev containers must still have a license — the bundled `laptop-license.json` works on any laptop it was signed for.
 
 ### 7.6 "I lost my private key"
 

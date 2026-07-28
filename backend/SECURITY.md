@@ -424,7 +424,7 @@ Full runbook in [`DEPLOYMENT.md`](DEPLOYMENT.md). Summary:
 - Does not edit `license.json` (signed; editing invalidates it)
 - Does not bake secrets into a new image
 - Does not edit `docker-compose.yml` to remove the host-bind mounts
-- Does not skip the license check via `H2S_SKIP_LICENSE=1`
+- Does not skip the license check via any environment variable or flag (none exist by design — license verification is mandatory)
 - Does not modify the running container (`docker exec` should be rare and audited)
 
 ---

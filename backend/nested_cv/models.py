@@ -122,7 +122,14 @@ class CvArtifact:
     output_schema: list
     mapping_rows: list
     warnings: list
-    sql_info_raw: list = field(default_factory=list)  # Raw sql_info list for reuse by generate_sql_from_mapping
+    sql_info_raw: list = field(default_factory=list)
+    # Internal-only payload kept verbatim so
+    # `mapping_sql_generator.generate_sql_from_mapping(...)` can be called
+    # from `tasks._run_generation` without re-parsing. NOT serialized by
+    # `to_dict()` — the frontend's `CvArtifact` TS type has no such field,
+    # and shipping it over the wire would leak internal data into the UI.
+    # The field is still round-trippable via `from_dict()` for any code path
+    # that needs to restore an artifact from a persisted session.
 
     def to_dict(self):
         return {
@@ -138,7 +145,6 @@ class CvArtifact:
             "output_schema": [o.to_dict() if hasattr(o, 'to_dict') else o for o in self.output_schema],
             "mapping_rows": [m.to_dict() if hasattr(m, 'to_dict') else m for m in self.mapping_rows],
             "warnings": [w.to_dict() if hasattr(w, 'to_dict') else w for w in self.warnings],
-            "sql_info_raw": self.sql_info_raw,
         }
 
     @classmethod
@@ -243,9 +249,11 @@ class NestedTask:
     status: str  # "PENDING" | "IN_PROGRESS" | "COMPLETED" | "FAILED" | "CANCELLED"
     progress: int
     message: str
+    phase: Optional[str] = None  # Phase value: "starting" | "rendering" | …
     result_url: Optional[str] = None
     result_content: Optional[str] = None  # In-memory SQL/PySpark content — no OUTPUT_DIR
     output_format: Optional[str] = None  # "sql" or "pyspark" — set at generation time
+    result_filename: Optional[str] = None  # Suggested download filename, e.g. "cv_sales_fact.sql"
     diagnostics: list = field(default_factory=list)
     created_at: str = ""
     updated_at: str = ""
@@ -263,9 +271,11 @@ class NestedTask:
             "status": self.status,
             "progress": self.progress,
             "message": self.message,
+            "phase": self.phase,  # Structured phase — see orchestrator.Phase
             "result_url": self.result_url,
             "result_content": self.result_content,  # In-memory content for editor display
             "output_format": self.output_format,  # "sql" or "pyspark"
+            "result_filename": self.result_filename,  # Suggested download filename
             "diagnostics": [d.to_dict() if hasattr(d, 'to_dict') else d for d in self.diagnostics],
             "created_at": self.created_at,
             "updated_at": self.updated_at,

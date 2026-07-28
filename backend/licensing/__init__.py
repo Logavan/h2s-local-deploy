@@ -50,7 +50,6 @@ from .signer import (
 )
 from .verifier import (
     DEFAULT_PUBLIC_KEY_PATH,
-    SKIP_ENV_VAR,
     VerificationResult,
     check_or_exit,
     quick_status,
@@ -92,5 +91,4 @@ __all__ = [
     "check_or_exit",
     "quick_status",
     "DEFAULT_PUBLIC_KEY_PATH",
-    "SKIP_ENV_VAR",
 ]

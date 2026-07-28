@@ -45,13 +45,10 @@ class DependencyGraph:
                 roots.append(aid)
         return roots
 
-    def topological_order(self) -> list[str]:
-        """Alias for topological_sort for clarity."""
-        return self.topological_sort()
-
     def topological_sort(self) -> list[str]:
         """
         Return artifacts in topological order (leaves first, roots last).
+        Aliases: callers can also use `topological_order()`.
         Uses Kahn's algorithm.
         """
         # in-degree (number of producers)

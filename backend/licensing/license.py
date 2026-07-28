@@ -46,8 +46,8 @@ REQUIRED_FIELDS = (
 # keeping the original license.json intact.
 OPTIONAL_FIELDS = (
     "binary_sha256",
-    "image_digest",  # cosign-pinned image digest (sha256:...) — alternative to binary_sha256
-    "secrets",       # signed blob of per-customer pre-authorized API keys (optional)
+    "image_digest",     # cosign-pinned image digest (sha256:...) — alternative to binary_sha256
+    "secrets",          # signed blob of per-customer pre-authorized API keys (optional)
 )
 
 DEFAULT_LICENSE_FILENAME = "license.json"
@@ -151,7 +151,15 @@ def find_license_file(explicit_path: Optional[str] = None) -> str:
         1. explicit_path arg
         2. LICENSE_PATH env var
         3. ./license.json (cwd)
-        4. <licensing_pkg_parent>/license.json (alongside the app)
+        4. <licensing_pkg_parent>/license.json (alongside the app — `backend/`)
+        5. <repo_root>/laptop-license.json  — solo-dev machine-bound license
+        6. <repo_root>/license.json         — production-style name
+
+    Every license found here is machine-bound — there is no dev-mode bypass.
+    The repo-root checks make local dev friction-free: clone the repo and
+    the laptop license is already there, regardless of which directory you
+    start Flask from. LICENSE_PATH still wins so Docker deployments can
+    pin the mounted license.json explicitly.
 
     Raises LicenseNotFoundError when none of these resolve.
     """
@@ -165,6 +173,10 @@ def find_license_file(explicit_path: Optional[str] = None) -> str:
     # Two directories up from licensing/license.py → backend/
     pkg_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     candidates.append(os.path.join(pkg_root, DEFAULT_LICENSE_FILENAME))
+    # Three directories up → repo root
+    repo_root = os.path.dirname(pkg_root)
+    candidates.append(os.path.join(repo_root, "laptop-license.json"))
+    candidates.append(os.path.join(repo_root, DEFAULT_LICENSE_FILENAME))
 
     for path in candidates:
         if path and os.path.isfile(path):

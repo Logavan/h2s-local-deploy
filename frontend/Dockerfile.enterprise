@@ -1,8 +1,27 @@
 # HANACV2SQL Enterprise Edition - Frontend Dockerfile
-# Multi-stage build with Node 20 Alpine
+# Multi-stage build with Node 20 Alpine.
+#
+# Build-time configuration:
+#   NEXT_PUBLIC_API_BASE_URL  Backend URL the browser fetches hit. Default
+#                             empty = same-origin (requires a reverse proxy
+#                             in front to route /api/* to backend:8080).
+#                             Set to an absolute URL when bypassing the
+#                             proxy. This value is inlined into the JS
+#                             bundle at build time.
+#
+# Example (reverse-proxy deployment):
+#   docker build -t hanacv2sql-frontend ./frontend
+#
+# Example (direct-to-backend deployment):
+#   docker build --build-arg NEXT_PUBLIC_API_BASE_URL=http://api.client.local:8080 \
+#     -t hanacv2sql-frontend ./frontend
 
 # Stage 1: Builder
 FROM node:20-alpine AS builder
+
+# Build-time argument - inlined into the JS bundle
+ARG NEXT_PUBLIC_API_BASE_URL=""
+ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
 
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
@@ -18,7 +37,7 @@ RUN pnpm install --frozen-lockfile
 # Copy source code
 COPY . .
 
-# Build Next.js app
+# Build Next.js app (NEXT_PUBLIC_API_BASE_URL is inlined here)
 RUN pnpm build
 
 # Stage 2: Runtime

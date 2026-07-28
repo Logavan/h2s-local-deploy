@@ -245,6 +245,16 @@ export function BulkFileUploadSection({
     fileInputRef.current?.click()
   }
 
+  // Keyboard activation for the bulk upload dropzone — Enter / Space
+  // mirror a click so keyboard-only users can open the file picker.
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (disabled) return
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault()
+      handleClick()
+    }
+  }
+
   // Get status icon
   const getStatusIcon = (status: BulkFileInfo["status"]) => {
     switch (status) {
@@ -310,7 +320,7 @@ export function BulkFileUploadSection({
     <div className="w-full mb-6">
       {/* Upload Area */}
       <div
-        className={`relative overflow-hidden border-2 border-dashed rounded-lg transition-all duration-300 ${
+        className={`relative overflow-hidden border-2 border-dashed rounded-lg transition-all duration-300 outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
           disabled
             ? "border-gray-200 bg-gray-50 cursor-not-allowed opacity-60"
             : isDragging
@@ -324,6 +334,11 @@ export function BulkFileUploadSection({
         onDragLeave={disabled ? undefined : handleDragLeave}
         onDrop={disabled ? undefined : handleDrop}
         onClick={disabled ? undefined : handleClick}
+        onKeyDown={handleKeyDown}
+        role="button"
+        tabIndex={disabled ? -1 : 0}
+        aria-label="Upload ZIP file containing XML or TXT files. Press Enter or Space to browse."
+        aria-disabled={disabled}
         onMouseEnter={() => !disabled && setIsHovering(true)}
         onMouseLeave={() => !disabled && setIsHovering(false)}
       >

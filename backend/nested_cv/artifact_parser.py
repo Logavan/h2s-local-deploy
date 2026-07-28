@@ -22,8 +22,12 @@ def _safe_json_parse(content: str) -> Optional[dict]:
         return None
 
 
-def _infer_object_kind(ref: str) -> str:
-    """Try to deterministically infer whether a reference is a table or CV."""
+def infer_object_kind(ref: str) -> str:
+    """Infer whether a ref string is a table or CV. Returns an ObjectKind value.
+
+    Public so flask_app.py can reuse it (was previously duplicated as a
+    private flask_app._infer_object_kind helper — that copy is gone).
+    """
     # Patterns that suggest a calculation view
     cv_indicators = ["_CV", "_cv", "CALC_VIEW", ".cv", "/cv/"]
     for indicator in cv_indicators:
@@ -124,7 +128,7 @@ def parse_mapping_content(
                 dependencies.append(SourceReference(
                     source_ref_raw=ref_raw,
                     source_ref_canonical=dep.get("source_ref_canonical", _canonicalize_ref(ref_raw)),
-                    object_kind=dep.get("object_kind", _infer_object_kind(ref_raw)),
+                    object_kind=dep.get("object_kind", infer_object_kind(ref_raw)),
                     referenced_by_node=dep.get("referenced_by_node", ""),
                     required_columns_json=json.dumps(dep.get("required_columns", [])),
                 ))
@@ -207,7 +211,7 @@ def _extract_legacy_dependencies(content: str | dict) -> list[SourceReference]:
                         deps.append(SourceReference(
                             source_ref_raw=ref_str,
                             source_ref_canonical=_canonicalize_ref(ref_str),
-                            object_kind=_infer_object_kind(ref_str),
+                            object_kind=infer_object_kind(ref_str),
                             referenced_by_node="legacy",
                             required_columns_json="[]",
                         ))
@@ -218,7 +222,7 @@ def _extract_legacy_dependencies(content: str | dict) -> list[SourceReference]:
             deps.append(SourceReference(
                 source_ref_raw=ref,
                 source_ref_canonical=_canonicalize_ref(ref),
-                object_kind=_infer_object_kind(ref),
+                object_kind=infer_object_kind(ref),
                 referenced_by_node="legacy",
                 required_columns_json="[]",
             ))

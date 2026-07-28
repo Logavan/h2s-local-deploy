@@ -4,9 +4,6 @@ import path from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-/** @type {import('next').AppRunnerEnvType, import('next').NextConfig} */
-const isProd = process.env.NODE_ENV === 'production';
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
@@ -85,73 +82,35 @@ const nextConfig = {
   },
 
   async rewrites() {
+    // Next.js server-side rewrite for /api/* - only used by SSR/edge code
+    // (browser fetch() calls bypass this entirely and use lib/config.ts).
+    //
+    // Priority:
+    //   1. BACKEND_UPSTREAM_URL - Docker-network URL for SSR
+    //      (e.g. http://backend:8080 in compose)
+    //   2. NEXT_PUBLIC_API_BASE_URL - same-origin deployments
+    //   3. localhost:8080 - last-resort dev default
+    const backendUpstream =
+      process.env.BACKEND_UPSTREAM_URL ||
+      process.env.NEXT_PUBLIC_API_BASE_URL ||
+      'http://localhost:8080';
     return [
       {
         source: '/api/:path*',
-        destination: `${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'}/api/:path*`,
+        destination: `${backendUpstream}/api/:path*`,
       },
     ];
   },
 
   // ---------------------------------------------------------------------------
-  // Webpack — strip debug code in production
+  // Turbopack — Next.js 16 default bundler.
+  // Browser-only Node polyfills (fs / path / child_process) are auto-stubbed,
+  // SWC handles minification natively, and source maps are produced by default
+  // in dev. The previous webpack block (Terser drop_console + bundle analyzer)
+  // was removed because Turbopack does not expose those hooks. Re-add via
+  // `turbopack.rules` / `turbopack.minify` only if a concrete need appears.
   // ---------------------------------------------------------------------------
-  webpack: (config, { isServer, dev }) => {
-    if (!isServer) {
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        fs: false,
-        path: false,
-        child_process: false,
-      };
-    }
-
-    if (isProd) {
-      // Strip source maps from output
-      config.devtool = false;
-
-      // Use Terser to remove console calls + debug statements in production
-      const terserPlugin = config.optimization?.minimizer?.find?.(
-        (minimizer) => minimizer.constructor.name === 'TerserPlugin'
-      );
-      if (terserPlugin) {
-        terserPlugin.options.terserOptions = {
-          ...terserPlugin.options.terserOptions,
-          compress: {
-            ...terserPlugin.options.terserOptions.compress,
-            drop_console: true,
-            drop_debugger: true,
-            passes: 2,
-          },
-          mangle: { toplevel: true },
-          format: { comments: false },
-        };
-      }
-    } else {
-      // Faster dev rebuilds — use eval source maps
-      config.devtool = 'eval-cheap-module-source-map';
-    }
-
-    return config;
-  },
-
-  // ---------------------------------------------------------------------------
-  // Bundle analyzer — run `ANALYZE=true npm run build` to dump report.html
-  // ---------------------------------------------------------------------------
-  ...(process.env.ANALYZE === 'true' && {
-    webpack: (config) => {
-      // Lazy-load to avoid bundling in production images
-      const { BundleAnalyzerPlugin } = require('webpack-bundle-analyzer');
-      config.plugins.push(
-        new BundleAnalyzerPlugin({
-          analyzerMode: 'static',
-          reportFilename: '../bundle-report.html',
-          openAnalyzer: false,
-        })
-      );
-      return config;
-    },
-  }),
+  turbopack: {},
 };
 
 export default nextConfig;

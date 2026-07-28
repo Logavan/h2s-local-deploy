@@ -62,9 +62,9 @@ from nested_cv import (
     CvArtifact,
     DependencyLink,
     MappingEntry,
-    EmissionMode,
     OutputFormat,
 )
+from nested_cv.artifact_parser import infer_object_kind
 from excel_encrypt import decrypt_xlsx_file
 from api_client import api_call_flash, api_call
 from licensing.verifier import check_or_exit, quick_status
@@ -119,7 +119,9 @@ def sanitize_json_data(data):
 def create_app():
     """Application factory pattern for better testing and configuration"""
     # License gate — runs before Flask is constructed so we never bind to a
-    # port with an invalid license. Operator escape hatch: H2S_SKIP_LICENSE=1.
+    # port with an invalid license. Local development uses a license signed
+    # for the dev's own machine fingerprint; production uses a customer-
+    # bound license. Same code path either way — no dev-mode bypass.
     # `__file__` here is flask_app.py — the binary integrity check verifies
     # *this* file, not whatever __main__ happens to be (e.g. unittest's runner).
     _license_info = check_or_exit(entrypoint=__file__)
@@ -127,12 +129,41 @@ def create_app():
     app = Flask(__name__)
     app.config["LICENSE_INFO"] = _license_info
 
-    # Configure CORS with more permissive settings for development
-    CORS(app, resources={r"/*": {"origins": "*"}})
+    # Configure CORS. Default is a permissive `*` only for local dev (no
+    # K_SERVICE env); production deployments must set H2S_ALLOWED_ORIGINS
+    # to a comma-separated list of allowed browser origins. The wildcard
+    # default is unsafe because the HMAC signing key is fetched from
+    # /api/hmac/key, which is exempt from HMAC — a permissive CORS policy
+    # lets any browser-origin fetch it.
+    _allowed_origins_env = os.getenv("H2S_ALLOWED_ORIGINS", "").strip()
+    if _allowed_origins_env:
+        _cors_origins = [o.strip() for o in _allowed_origins_env.split(",") if o.strip()]
+    elif IS_CLOUD_RUN:
+        # Cloud Run / production: refuse to start without explicit origins.
+        # Falling back to `*` here would expose /api/hmac/key to any browser.
+        logger.error(
+            "H2S_ALLOWED_ORIGINS is not set in production. Refusing to start "
+            "with permissive CORS. Set H2S_ALLOWED_ORIGINS to a comma-separated "
+            "list of allowed origins (e.g. 'https://app.example.com')."
+        )
+        _cors_origins = []  # No origin allowed; effectively locked down.
+    else:
+        # Local development: keep permissive `*` for ease of testing.
+        _cors_origins = "*"
+    CORS(app, resources={r"/*": {"origins": _cors_origins}})
 
     # Configure Flask for production
     app.config['JSON_SORT_KEYS'] = False
     app.config['JSONIFY_PRETTYPRINT_REGULAR'] = True
+    # Mirror the CORS config into app.config so the /api/hmac/key origin
+    # guard can use the same allowlist. "*" is preserved as a literal so the
+    # guard can recognise permissive-dev mode.
+    if _cors_origins == "*":
+        app.config["H2S_ALLOWED_ORIGINS"] = {"*"}
+    elif isinstance(_cors_origins, (list, tuple, set)):
+        app.config["H2S_ALLOWED_ORIGINS"] = set(_cors_origins)
+    else:
+        app.config["H2S_ALLOWED_ORIGINS"] = set()
 
     # Explicitly set Flask's debug mode based on environment
     app.debug = not IS_CLOUD_RUN
@@ -192,13 +223,53 @@ def create_app():
         """Hand the current HMAC signing key to the frontend.
 
         Endpoint is exempt from HMAC verification (it must be reachable before
-        the frontend has a key to sign with). In production this should be
-        fronted by HTTPS and rate-limited; the backend already requires a
-        valid license to serve traffic, so this key is only accessible to
-        parties that already hold a valid license.
+        the frontend has a key to sign with). To mitigate browser-based key
+        harvesting, this endpoint enforces an Origin/Referer check against the
+        configured CORS allowlist. Requests with no Origin header and no
+        Referer header are rejected in non-dev environments (browsers always
+        send one or the other for cross-origin requests; direct curl/server
+        calls must use a configured origin).
         """
         if request.method == 'OPTIONS':
             return '', 200
+
+        # Origin / Referer guard. H2S_ALLOWED_ORIGINS is the source of truth;
+        # the same set is used by flask-cors above.
+        allowed_origins = app.config.get("H2S_ALLOWED_ORIGINS", set())
+        request_origin = request.headers.get("Origin")
+        referer = request.headers.get("Referer", "")
+
+        # Permissive-dev mode: {"*"} means any origin is allowed (local dev only).
+        if allowed_origins == {"*"} and not IS_CLOUD_RUN:
+            pass  # fall through to key return below
+        else:
+            # Same-origin: Origin header is present and matches the request host.
+            request_host = request.host_url.rstrip("/")
+            same_origin = bool(request_origin) and (
+                request_origin.rstrip("/") == request_host
+            )
+
+            # Cross-origin but on the allowlist
+            on_allowlist = bool(request_origin) and (request_origin in allowed_origins)
+
+            if not (same_origin or on_allowlist):
+                if referer:
+                    from urllib.parse import urlparse
+                    ref_origin = f"{urlparse(referer).scheme}://{urlparse(referer).netloc}"
+                    if ref_origin in allowed_origins or ref_origin.rstrip("/") == request_host:
+                        pass  # allow via Referer
+                    else:
+                        return jsonify({
+                            "error": "Origin not allowed for HMAC key endpoint"
+                        }), 403
+                elif not IS_CLOUD_RUN:
+                    # Dev convenience: no Origin/Referer (e.g. local curl, tests).
+                    pass
+                else:
+                    return jsonify({
+                        "error": "Origin not allowed for HMAC key endpoint"
+                    }), 403
+
         # Pull the same key the middleware uses
         from hmac_auth import _get_signing_key
         import base64 as _b64
@@ -395,6 +466,13 @@ def _perform_conversion_task(task_id, xml_content, file_name, user_email, target
     """
     Performs the long-running XML to SQL conversion in a background thread.
     Updates the global conversion_tasks dictionary with status and results.
+
+    The task body is wrapped in a top-level try/except/finally so that any
+    unhandled exception (raised here, raised deep inside the converter, or
+    escaping a finally block) is captured into the task record as FAILED
+    with the exception message. Without this, a thread that dies with an
+    uncaught exception would leave the task in IN_PROGRESS forever and the
+    polling client would loop indefinitely.
     """
     global conversion_tasks
     conversion_tasks[task_id] = {
@@ -409,84 +487,106 @@ def _perform_conversion_task(task_id, xml_content, file_name, user_email, target
     }
     logger.info(f"Task {task_id}: Starting background conversion for {file_name} by {user_email}")
 
-    # Retrieve XML content from conversion_sessions
-    if task_id not in conversion_sessions:
-        raise ValueError(f"Session ID {task_id} not found for background task.")
+    try:
+        # Retrieve XML content from conversion_sessions
+        if task_id not in conversion_sessions:
+            raise ValueError(f"Session ID {task_id} not found for background task.")
 
-    session_data = conversion_sessions[task_id]
-    xml_content = session_data["xml_content"]
-    node_count = session_data["node_count"] # Get node_count from session
+        session_data = conversion_sessions[task_id]
+        xml_content = session_data["xml_content"]
+        node_count = session_data["node_count"] # Get node_count from session
 
-    # --- Self Keep-Alive Pinger ---
-    # Cloud Run can throttle CPU if no requests are active. We ping ourselves to stay "live".
-    def self_ping():
-        port = os.environ.get("PORT", "8080")
-        url = f"http://127.0.0.1:{port}/api/status"
-        logger.info(f"Task {task_id}: Starting self-pinger to {url}")
-        while task_id in conversion_tasks and conversion_tasks[task_id]["status"] == "IN_PROGRESS":
+        # --- Self Keep-Alive Pinger ---
+        # Cloud Run can throttle CPU if no requests are active. We ping ourselves to stay "live".
+        def self_ping():
+            port = os.environ.get("PORT", "8080")
+            url = f"http://127.0.0.1:{port}/api/status"
+            logger.info(f"Task {task_id}: Starting self-pinger to {url}")
+            while task_id in conversion_tasks and conversion_tasks[task_id]["status"] == "IN_PROGRESS":
+                try:
+                    requests.get(url, timeout=2)
+                except Exception as e:
+                    logger.warning(f"Task {task_id}: Self-ping failed: {e}")
+                time.sleep(10) # Ping every 10 seconds
+
+        threading.Thread(target=self_ping, daemon=True).start()
+
+        conversion_tasks[task_id].update({"message": "Converting XML to SQL...", "progress": 25})
+
+        # Enforce a strict timeout on the conversion process to ensure cleanup runs
+        CONVERSION_TIMEOUT_SECONDS = 3600 # 60 minutes
+
+        async def run_with_timeout():
             try:
-                requests.get(url, timeout=2)
+                return await asyncio.wait_for(
+                    convert_xml_to_sql(task_id, xml_content, file_name, target=target),
+                    timeout=CONVERSION_TIMEOUT_SECONDS
+                )
+            except asyncio.TimeoutError:
+                logger.error(f"Task {task_id}: Conversion timed out after {CONVERSION_TIMEOUT_SECONDS} seconds.")
+                return {"success": False, "error": f"Conversion timed out after {CONVERSION_TIMEOUT_SECONDS} seconds."}
+
+        conversion_result = asyncio.run(run_with_timeout())
+
+        if conversion_result["success"]:
+            conversion_tasks[task_id].update({"message": "Storing files...", "progress": 75})
+            zip_file_content = conversion_result["zip_file_content"]
+            data_mapping_content = conversion_result["Data_mapping"]
+            base_filename = conversion_result["view_name"]
+            cv_object_name = base_filename.replace(" ", "_").replace("-", "_")
+
+            # Save to disk via local_storage
+            try:
+                saved = local_storage.save_result(
+                    task_id,
+                    zip_file_content,
+                    data_mapping_content,
+                    metadata={"cv_object_name": cv_object_name}
+                )
+                logger.info(f"Task {task_id}: Saved to disk at {saved['sql_url']}")
             except Exception as e:
-                logger.warning(f"Task {task_id}: Self-ping failed: {e}")
-            time.sleep(10) # Ping every 10 seconds
+                logger.warning(f"Task {task_id}: Failed to save to disk: {e}")
 
-    threading.Thread(target=self_ping, daemon=True).start()
+            conversion_tasks[task_id].update({
+                "status": "COMPLETED",
+                "progress": 100,
+                "message": "Conversion complete.",
+                "result": {
+                    "sql_content": zip_file_content,
+                    "mapping_content": data_mapping_content,
+                    "sql_download_name": f"{cv_object_name}_converted.zip",
+                    "mapping_download_name": f"{cv_object_name}.xlsx"
+                }
+            })
+            logger.info(f"Task {task_id}: Background conversion completed successfully.")
+        else:
+            raise Exception(conversion_result.get("error", "Conversion failed"))
 
-    conversion_tasks[task_id].update({"message": "Converting XML to SQL...", "progress": 25})
+        # Clean up session data (xml_content is no longer needed)
+        if task_id in conversion_sessions:
+            del conversion_sessions[task_id]
+        delete_node_dict_pickle(task_id)
 
-    # Enforce a strict timeout on the conversion process to ensure cleanup runs
-    CONVERSION_TIMEOUT_SECONDS = 3600 # 60 minutes
-
-    async def run_with_timeout():
+    except Exception as exc:
+        # Capture the failure into the task record so the polling client can
+        # surface it instead of looping forever on IN_PROGRESS. Log the full
+        # traceback once for the operator; expose only str(exc) to the client.
+        logger.error(f"Task {task_id}: Background conversion crashed: {exc}")
+        logger.error(traceback.format_exc())
+        if task_id in conversion_tasks:
+            conversion_tasks[task_id].update({
+                "status": "FAILED",
+                "progress": conversion_tasks[task_id].get("progress", 0),
+                "message": f"Conversion failed: {exc}",
+                "error": str(exc),
+            })
+        # Best-effort cleanup of per-task resources
+        if task_id in conversion_sessions:
+            del conversion_sessions[task_id]
         try:
-            return await asyncio.wait_for(
-                convert_xml_to_sql(task_id, xml_content, file_name, target=target),
-                timeout=CONVERSION_TIMEOUT_SECONDS
-            )
-        except asyncio.TimeoutError:
-            logger.error(f"Task {task_id}: Conversion timed out after {CONVERSION_TIMEOUT_SECONDS} seconds.")
-            return {"success": False, "error": f"Conversion timed out after {CONVERSION_TIMEOUT_SECONDS} seconds."}
-
-    conversion_result = asyncio.run(run_with_timeout())
-
-    if conversion_result["success"]:
-        conversion_tasks[task_id].update({"message": "Storing files...", "progress": 75})
-        zip_file_content = conversion_result["zip_file_content"]
-        data_mapping_content = conversion_result["Data_mapping"]
-        base_filename = conversion_result["view_name"]
-        cv_object_name = base_filename.replace(" ", "_").replace("-", "_")
-
-        # Save to disk via local_storage
-        try:
-            saved = local_storage.save_result(
-                task_id,
-                zip_file_content,
-                data_mapping_content,
-                metadata={"cv_object_name": cv_object_name}
-            )
-            logger.info(f"Task {task_id}: Saved to disk at {saved['sql_url']}")
-        except Exception as e:
-            logger.warning(f"Task {task_id}: Failed to save to disk: {e}")
-
-        conversion_tasks[task_id].update({
-            "status": "COMPLETED",
-            "progress": 100,
-            "message": "Conversion complete.",
-            "result": {
-                "sql_content": zip_file_content,
-                "mapping_content": data_mapping_content,
-                "sql_download_name": f"{cv_object_name}_converted.zip",
-                "mapping_download_name": f"{cv_object_name}.xlsx"
-            }
-        })
-        logger.info(f"Task {task_id}: Background conversion completed successfully.")
-    else:
-        raise Exception(conversion_result.get("error", "Conversion failed"))
-
-    # Clean up session data (xml_content is no longer needed)
-    if task_id in conversion_sessions:
-        del conversion_sessions[task_id]
-    delete_node_dict_pickle(task_id)
+            delete_node_dict_pickle(task_id)
+        except Exception:
+            pass
 
 @app.route('/api/start-conversion', methods=['POST', 'OPTIONS'])
 def start_conversion():
@@ -642,8 +742,27 @@ def list_previous_conversions():
             if mapping_file:
                 mapping_path = os.path.join(task_dir, mapping_file)
                 mtime = os.path.getmtime(mapping_path)
+                # Read the manifest's task_id when one exists (so the LIST
+                # response matches what DOWNLOAD / INSPECT look up via
+                # local_storage.get_result_info). For legacy folders that
+                # predate the manifest, fall back to the subfolder name —
+                # their subfolder name IS the task_id by construction. Both
+                # endpoints handle that case via direct path fallback.
+                manifest_path = os.path.join(task_dir, "_manifest.json")
+                real_task_id = task_id
+                if os.path.isfile(manifest_path):
+                    try:
+                        with open(manifest_path, "r") as manifest_file:
+                            manifest = json.load(manifest_file)
+                        manifest_task_id = manifest.get("task_id")
+                        if manifest_task_id:
+                            real_task_id = manifest_task_id
+                    except Exception as manifest_err:
+                        logger.warning(
+                            f"Failed to read manifest at {manifest_path}: {manifest_err}"
+                        )
                 conversions.append({
-                    "task_id": task_id,
+                    "task_id": real_task_id,
                     "file_name": mapping_name,
                     "mapping_file": mapping_file,
                     "modified_at": datetime.fromtimestamp(mtime).isoformat()
@@ -1066,11 +1185,25 @@ def bulk_conversion():
             "timestamp": datetime.now().isoformat()
         }
 
-        # Start bulk conversion in BACKGROUND thread (don't block!)
-        threading.Thread(
-            target=lambda: bulk_processor.convert_bulk(files, bulk_task_id),
-            daemon=True
-        ).start()
+        # Start bulk conversion in BACKGROUND thread (don't block!).
+        # The launcher wrapper guarantees that any uncaught exception escaping
+        # convert_bulk is recorded against the bulk task as FAILED instead of
+        # leaving it in PROCESSING forever (where the polling client would
+        # loop indefinitely).
+        def _run_bulk_safely():
+            try:
+                bulk_processor.convert_bulk(files, bulk_task_id)
+            except Exception as exc:
+                logger.error(f"Bulk task {bulk_task_id}: crashed: {exc}")
+                logger.error(traceback.format_exc())
+                if bulk_task_id in bulk_tasks:
+                    bulk_tasks[bulk_task_id]["status"] = "FAILED"
+                    bulk_tasks[bulk_task_id]["error"] = str(exc)
+                    bulk_tasks[bulk_task_id]["message"] = (
+                        f"Bulk conversion crashed before completion: {exc}"
+                    )
+
+        threading.Thread(target=_run_bulk_safely, daemon=True).start()
 
         return jsonify({
             "success": True,
@@ -1357,15 +1490,26 @@ def nested_add_cv_from_xlsx(session_id):
                     sql_content, re.IGNORECASE
                 )
                 tables_found.update(from_matches)
-            source_matches_selection = not selected_source or any(
-                selected_source.upper() in {
-                    str(source).upper(),
-                    str(source).split(".")[-1].upper(),
-                }
-                for source in tables_found
-            )
-            if not source_matches_selection:
-                continue
+            # The selected_source filter is meant for root mode: when the user
+            # picks one source as "the primary" source for the new root CV and
+            # we only want that source's mapping info as the artifact's own
+            # dependencies. In nested mode, selected_source is set to the
+            # PARENT's source_ref (e.g. CV_INTERMEDIATE_SALES), which doesn't
+            # match the nested CV's own sources (e.g. CV_BASE_SALES) — so the
+            # filter would silently strip every dependency off the uploaded
+            # nested artifact, leaving its linkage dropdown empty and breaking
+            # 3+ level deep nesting. Skip the filter when parent_artifact_id is
+            # set so the nested CV's full dependency set is preserved.
+            if not parent_artifact_id:
+                source_matches_selection = not selected_source or any(
+                    selected_source.upper() in {
+                        str(source).upper(),
+                        str(source).split(".")[-1].upper(),
+                    }
+                    for source in tables_found
+                )
+                if not source_matches_selection:
+                    continue
             for src_table in tables_found:
                 if not src_table or src_table in seen_sources:
                     continue
@@ -1373,24 +1517,28 @@ def nested_add_cv_from_xlsx(session_id):
                 dependencies.append({
                     "source_ref_raw": src_table,
                     "source_ref_canonical": src_table.upper(),
-                    "object_kind": _infer_object_kind(src_table),
+                    "object_kind": infer_object_kind(src_table),
                     "referenced_by_node": str(row.get('Node name', row.get('node_name', 'unknown'))).strip(),
                     "required_columns": mapping_fields.get(src_table, []) if mapping_fields_raw and mapping_fields_raw != "nan" else []
                 })
 
         logger.info(f"[XLSX] final dependencies count: {len(dependencies)}, deps: {dependencies}")
 
-        # Build output_schema from mapping_info distinct columns
+        # Build output_schema from the LAST chunk's SELECT aliases — those are
+        # the actual columns the CV produces. The mapping_info sheet only lists
+        # source-side columns (what the CV reads), not output columns, so
+        # pulling from it would put the wrong column list on the artifact.
         output_schema = []
-        for i, row in enumerate(mapping_records):
-            col_name = str(row.get('sourceField', row.get('source_column', f'COL_{i}'))).strip()
-            if col_name and col_name != 'nan':
-                output_schema.append({
-                    "ordinal": i,
-                    "column_name": col_name,
-                    "data_type": None,
-                    "nullable": True
-                })
+        for i, col_name in enumerate(inspect.get("output_columns") or []):
+            col_name = str(col_name).strip()
+            if not col_name or col_name == "nan":
+                continue
+            output_schema.append({
+                "ordinal": i,
+                "column_name": col_name,
+                "data_type": None,
+                "nullable": True
+            })
 
         # Build sql_chunks from sql_info
         sql_chunks = []
@@ -1585,12 +1733,16 @@ def _inspect_xlsx_workbook(xls) -> dict:
     sql_info_records = sql_info_df.to_dict(orient='records')
 
     # source_tables from mapping_info (most reliable — every workbook has it)
+    # NOTE: the rename above converted column names to sourceTable /
+    # sourceField / targetTable. Reading by the OLD names (e.g. "Original Table")
+    # here would always return "" and silently produce an empty source_tables
+    # list for every workbook — use the renamed keys.
     seen_source_tables: set[str] = set()
     source_tables_list: list[dict] = []
     for row in mapping_info_df.to_dict(orient='records'):
-        src_table = str(row.get("Original Table", "")).strip()
-        src_field = str(row.get("Original Column", "")).strip()
-        tgt_table = str(row.get("New Table", "")).strip()
+        src_table = str(row.get("sourceTable", "")).strip()
+        src_field = str(row.get("sourceField", "")).strip()
+        tgt_table = str(row.get("targetTable", "")).strip()
         if not src_table or src_table == "nan" or src_table.upper() in seen_source_tables:
             continue
         seen_source_tables.add(src_table.upper())
@@ -1652,20 +1804,6 @@ def _inspect_xlsx_workbook(xls) -> dict:
         "last_chunk_sql": last_chunk_sql,
         "last_chunk_sources": last_chunk_sources,
     }
-
-
-def _infer_object_kind(ref: str) -> str:
-    """Infer whether a reference is a table or calculation view."""
-    upper = ref.upper()
-    cv_indicators = ["_CV", "_cv", "CALC_VIEW", ".cv", "/cv/"]
-    table_indicators = ["_T", "_tbl", "TABLE", ".table", "/tab/"]
-    for indicator in cv_indicators:
-        if indicator in upper:
-            return "calculation_view"
-    for indicator in table_indicators:
-        if indicator in upper:
-            return "physical_table"
-    return "unknown"
 
 
 # PATCH /api/nested/sessions/<session_id>/cvs/<artifact_id> — Update CV
@@ -1851,11 +1989,15 @@ def nested_get_task(task_id):
         return jsonify({"error": "Task not found"}), 404
     return jsonify({
         "task_id": task.task_id,
+        "session_id": task.session_id,
         "status": task.status,
         "progress": task.progress,
         "message": task.message,
+        "phase": task.phase,  # Structured phase — see orchestrator.Phase
         "result_url": task.result_url,
         "result_content": task.result_content,  # In-memory content for editor display
+        "output_format": task.output_format,  # "sql" or "pyspark"
+        "result_filename": task.result_filename,  # Suggested download filename
         "diagnostics": [d.to_dict() if hasattr(d, 'to_dict') else d for d in task.diagnostics],
     }), 200
 
@@ -1877,11 +2019,24 @@ def nested_download(task_id):
     # Determine extension and mimetype from task.output_format
     content = task.result_content
     if task.output_format == OutputFormat.PYSPARK.value:
+        default_ext = "pyspark"
         default_name = f"nested_cv_{task_id[:8]}.pyspark"
         mimetype = 'text/plain'
     else:
+        default_ext = "sql"
         default_name = f"nested_cv_{task_id[:8]}.sql"
         mimetype = 'text/x-sql'
+
+    # Prefer the orchestrator's filename — the root CV's mapping workbook
+    # stem (e.g. `cv_sales_fact.sql`) — so a multi-CV download matches what
+    # the user actually uploaded. Still sanitise it: a stray `..` in a
+    # mapping workbook name would otherwise break Content-Disposition.
+    if getattr(task, "result_filename", None):
+        suggested = secure_filename(task.result_filename)
+        if suggested:
+            if not suggested.lower().endswith("." + default_ext):
+                suggested += "." + default_ext
+            default_name = suggested[:200]
 
     # Honor an explicit ?filename= override from the frontend rename UI.
     # Sanitize: strip path separators, control chars, and cap length so a
@@ -1919,19 +2074,34 @@ def nested_inspect_previous_conversion(task_id):
     if request.method == 'OPTIONS':
         return '', 200
     try:
-        base_dir = os.getenv("PREVIOUS_CONVERSIONS_DIR") or local_storage.OUTPUT_DIR
-        task_dir = os.path.join(base_dir, task_id)
-        if not os.path.isdir(task_dir):
-            return jsonify({"error": f"No previous conversion found for task_id: {task_id}"}), 404
-
-        # Find the mapping .xlsx file in this task directory
+        # Resolve the mapping file. We try two lookup strategies in order:
+        #   1. Manifest-aware: scan all subfolders for a _manifest.json whose
+        #      task_id matches. This is the canonical path for any
+        #      conversion that went through save_result() (which writes the
+        #      manifest with the original UUID task_id). It works regardless
+        #      of what the on-disk subfolder is named.
+        #   2. Direct path: for legacy folders that predate the manifest, the
+        #      subfolder name itself is the task_id, so join it onto the
+        #      base directory and look for an .xlsx inside.
+        # Falling back to (2) means legacy conversions remain selectable
+        # from the history list — without this they would 404 even though
+        # the LIST endpoint still shows them.
         mapping_path = None
-        for fname in os.listdir(task_dir):
-            if fname.endswith(".xlsx") and not fname.startswith("_"):
-                mapping_path = os.path.join(task_dir, fname)
-                break
-        if not mapping_path:
-            return jsonify({"error": "No mapping sheet file found for this conversion"}), 404
+        result_info = local_storage.get_result_info(task_id)
+        if result_info:
+            mapping_path = result_info.get("data_mapping_url")
+
+        if not mapping_path or not os.path.isfile(mapping_path):
+            base_dir = os.getenv("PREVIOUS_CONVERSIONS_DIR") or local_storage.OUTPUT_DIR
+            legacy_task_dir = os.path.join(base_dir, task_id)
+            if os.path.isdir(legacy_task_dir):
+                for fname in os.listdir(legacy_task_dir):
+                    if fname.endswith(".xlsx") and not fname.startswith("_"):
+                        mapping_path = os.path.join(legacy_task_dir, fname)
+                        break
+
+        if not mapping_path or not os.path.isfile(mapping_path):
+            return jsonify({"error": f"No previous conversion found for task_id: {task_id}"}), 404
 
         password = request.args.get("password", "mypassword123la")
         # Same decrypt helper used by the upload endpoint, but pointed at a

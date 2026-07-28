@@ -42,10 +42,23 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile.enterprise
+      # Default: empty = same-origin browser requests (reverse proxy routes
+      # /api/* to backend). For direct-to-backend deployments, override at
+      # build time:
+      #   docker compose build --build-arg NEXT_PUBLIC_API_BASE_URL=http://api.client.local:8080
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ""
     ports:
+      # In production, port 3000 should NOT be exposed publicly - the reverse
+      # proxy (see deploy/nginx.conf) terminates TLS on :443 and proxies to
+      # this port over the internal Docker network. Exposing 3000 here is
+      # useful for debugging; remove or restrict via firewall for production.
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_BASE_URL=http://backend:8080
+      # Backend URL used by Next.js server-side /api/* rewrite only.
+      # Browser fetch() calls in lib/config.ts use NEXT_PUBLIC_API_BASE_URL
+      # (baked in at build time, defaults to empty = same-origin).
+      - BACKEND_UPSTREAM_URL=http://backend:8080
       - NODE_ENV=production
     depends_on:
       - backend
@@ -56,6 +69,21 @@ services:
       - /tmp:size=64m
     security_opt:
       - no-new-privileges:true
+    # Resource sizing - tune for your client VM. Frontend is mostly Next.js
+    # SSR + static asset serving, 1 CPU / 1 GB is plenty for tens of users.
+    # `mem_limit` / `cpus` (top-level) work with `docker compose up`.
+    # `deploy.resources` requires `docker stack deploy` (Swarm mode) but is
+    # included here so the limits survive if you migrate to Swarm later.
+    mem_limit: 1g
+    cpus: '1.0'
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1024M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
 
   backend:
     build:
@@ -68,6 +96,9 @@ services:
       - FLASK_ENV=production
       - OUTPUT_DIR=/data/outputs
       # License host-bind paths — read by backend/licensing/fingerprint.py
+      # Required so the machine fingerprint stays stable across container
+      # restarts. Without them the container's own ephemeral ID is used,
+      # which changes every restart and breaks license verification.
       - LICENSE_HOST_MACHINE_ID_PATH=/host/etc/machine-id
       - LICENSE_HOST_DMI_UUID_PATH=/host/sys/class/dmi/id/product_uuid
 
@@ -90,10 +121,14 @@ services:
       # App data
       - ./data/outputs:/data/outputs
 
-      # LICENSE HOST-BIND — bind the license to the customer's VM
+      # LICENSE HOST-BIND — bind the license to the customer's VM.
+      # Required for every license (local and production alike) so the
+      # fingerprint stays stable across container restarts.
       - /etc/machine-id:/host/etc/machine-id:ro
       - /sys/class/dmi/id/product_uuid:/host/sys/class/dmi/id/product_uuid:ro
-      - ./license.json:/etc/license.d/license.json:ro
+      # License file — laptop-license.json for this developer's machine,
+      # or a customer-bound license.json in production.
+      - ./laptop-license.json:/etc/license.d/license.json:ro
 
       # ----- METHOD A: env-file path ---------------------------------------
       # Admin-created secrets file on the host, chmod 600. File contents:
@@ -131,6 +166,30 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+
+    # Resource sizing - tune for your client VM.
+    #
+    # Bulk ZIP conversions run a ThreadPoolExecutor that fans out across
+    # CPU cores (see backend/bulk_processor.py). Concurrent Gemini API
+    # calls plus XML parsing + SQL generation can spike memory hard on
+    # large CV XMLs.
+    #
+    #   Light use  (single users, small CVs):         2 CPU /  4 GB
+    #   Default    (mixed single + bulk, <10 users):  4 CPU /  8 GB
+    #   Heavy use  (many bulk jobs, >10 users):       8 CPU / 16 GB
+    #
+    # These are the "default" tier - change the top-level `mem_limit` and
+    # `cpus` for `docker compose up`, or `deploy.resources.limits` for Swarm.
+    mem_limit: 8g
+    cpus: '4.0'
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 8192M
+        reservations:
+          cpus: '1.0'
+          memory: 1024M
 
 networks:
   hanacv2sql-network:

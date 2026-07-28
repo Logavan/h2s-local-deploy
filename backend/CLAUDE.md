@@ -33,9 +33,8 @@ nested_cv/               # Nested CV Flattener module
   artifact_parser.py      # CV JSON mapping workbook parser
   dependency_graph.py     # DAG construction, topological sort, cycle detection
   mapping_service.py      # Mapping deduplication and conflict detection
-  sql_composer.py         # SQL composition with CTE namespace rewriting
-  pyspark_composer.py     # PySpark DataFrame composition
-  tasks.py                # Async generation task lifecycle
+  tasks.py                # Async generation task lifecycle (single → mapping_sql_generator; multi → orchestrator)
+  orchestrator.py         # Multi-artifact chaining (CTE / HANA table-function / PySpark)
 config/settings.py        # Environment variable config (GEMINI_API_KEY required)
 requirements.txt          # Python dependencies
 Dockerfile.enterprise

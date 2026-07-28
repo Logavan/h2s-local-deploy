@@ -17,37 +17,13 @@ class MappingService:
         self._build_index()
 
     def _build_index(self):
-        # key: (source_ref_canonical, source_column_raw)
+        # key: (source_ref_canonical, source_column_raw) — used inside detect_conflicts()
         self._entry_index: dict[tuple, list[MappingEntry]] = {}
         for m in self.global_mappings:
             key = (m.source_ref_canonical, m.source_column_raw)
             if key not in self._entry_index:
                 self._entry_index[key] = []
             self._entry_index[key].append(m)
-
-    def add_artifact_mappings(self, artifact: CvArtifact):
-        """Add all mapping rows from an artifact to the global set."""
-        for m in artifact.mapping_rows:
-            if m.artifact_id is None:
-                m.artifact_id = artifact.artifact_id
-            self.global_mappings.append(m)
-            key = (m.source_ref_canonical, m.source_column_raw)
-            if key not in self._entry_index:
-                self._entry_index[key] = []
-            self._entry_index[key].append(m)
-
-    def get_consolidated_mappings(self) -> list[MappingEntry]:
-        """Return deduplicated list of all mapping entries."""
-        # For each unique key, if there are multiple with different targets, that's a conflict
-        # For now, just deduplicate by keeping the first
-        seen: set[tuple] = set()
-        result: list[MappingEntry] = []
-        for m in self.global_mappings:
-            key = (m.source_ref_canonical, m.source_column_raw, m.target_table, m.target_column)
-            if key not in seen:
-                seen.add(key)
-                result.append(m)
-        return result
 
     def detect_conflicts(self) -> list[Diagnostic]:
         """Find mapping entries with the same source but different targets."""

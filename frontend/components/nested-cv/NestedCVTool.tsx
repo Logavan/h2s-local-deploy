@@ -423,6 +423,17 @@ export default function NestedCVTool() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, tree])
 
+  // Main view's own mapping_info row count — drives the "N mappings" badge on
+  // the root node. Same rule as base nodes: each node's badge = its own
+  // mapping_rows.length, no cross-node aggregation.
+  const mainMappingCount = useMemo(() => {
+    if (!session || tree.length === 0) return 0
+    const root = tree[0]
+    if (!root?.artifactId) return 0
+    return session.artifacts[root.artifactId]?.mapping_rows?.length || 0
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, tree])
+
   // Reset local edit state ONLY when the selected node changes. We deliberately
   // exclude `localColumns`/`descriptions` from the trigger so that updating them
   // (e.g., after saving) doesn't clobber edits the user is still making on the
@@ -846,7 +857,13 @@ export default function NestedCVTool() {
         if (status.status === "COMPLETED") {
           setResultContent(status.result_content || "")
           const format = status.output_format || session.output_format
-          setResultFileName(`nested_cv_${response.task_id.slice(0, 8)}.${format === "pyspark" ? "pyspark" : "sql"}`)
+          const ext = format === "pyspark" ? "pyspark" : "sql"
+          // Backend picks the name from the root CV's mapping file stem
+          // (e.g. `cv_sales_fact.sql`). Fall back to the generic name only
+          // if the server didn't set one.
+          const name = status.result_filename
+            || `nested_cv_${response.task_id.slice(0, 8)}.${ext}`
+          setResultFileName(name)
           return
         }
         if (status.status === "FAILED" || status.status === "CANCELLED") throw new Error(status.message)
@@ -1111,14 +1128,16 @@ export default function NestedCVTool() {
                   label: producer.cv_display_name || link.source_ref_canonical,
                   isResolved: true,
                   sourceRef: link.source_ref_canonical,
-                  // Nested CV base: mappings are stored under the parent's artifact_id,
-                  // scoped by source_ref_canonical. Pass both so the helper can find them.
-                  linkedSources: buildLinkedSourcesFor(
-                    session,
-                    producerId,
-                    link.consumer_artifact_id,
-                    link.source_ref_canonical,
-                  ),
+                  // Show the base's OWN sources (its dependencies / children) in
+                  // the linkage dropdown, not the parent's source context. The
+                  // dropdown is for linking NEW nested CVs as children of this
+                  // base — so listing the parent (the source_ref that was used
+                  // to link THIS base) is wrong direction.
+                  //
+                  // The join mappings (parent.scoped_to_source_ref) are still
+                  // used by the column-mapping editor via handleMapping(), so
+                  // removing them here doesn't lose any data.
+                  linkedSources: buildLinkedSourcesFor(session, producerId),
                   parentId: parentNodeId,
                   mappingCount: producerMappingCount,
                 })
@@ -1184,37 +1203,26 @@ export default function NestedCVTool() {
 
               // Resolve where the actual column mappings are stored.
               // For the main view: under root.artifactId (all mappings belong to the root CV).
-              // For a nested CV base: under the PARENT's artifact_id, where source_ref_canonical
-              //    matches the source_ref that this nested CV resolves.
+              // For a nested CV base: under the BASE's own artifact_id. The base's
+              // "mapping info" rows come from the XLSX it was uploaded with and
+              // describe how THAT base's source tables map to its output columns.
+              // The parent-side join mappings are intentionally NOT included here —
+              // editing a base node should only mutate the base's own mappings.
               if (isMain) {
                 if (artifactId) {
                   node.mappings = session?.global_mappings.filter(m => m.artifact_id === artifactId) || []
                 }
               } else if (baseMatch) {
-                // Find the parent's artifact ID
-                const parentBase = baseMatch.parentId
-                  ? allBases.find(b => b.id === baseMatch.parentId)
-                  : null
-                const parentArtifactId: string | undefined = parentBase?.id || root.artifactId
-                if (parentArtifactId) {
-                  const parentSourceRef = (baseMatch.sourceRef || "").toUpperCase()
-                  node.ownerArtifactId = parentArtifactId
-                  const allMappings = session?.global_mappings || []
-                  // Join mappings: stored under parent's artifact_id with this source_ref.
-                  // These describe how the parent source's columns link to the
-                  // nested CV's output columns (the result of toggle→upload→join).
-                  const joinMappings = allMappings.filter(m => {
-                    if (m.artifact_id !== parentArtifactId) return false
-                    return (m.source_ref_canonical || "").toUpperCase() === parentSourceRef
-                  })
-                  // Own column mappings: the nested CV's OWN mapping info rows
-                  // (from the Excel it was uploaded with). These are stored under
-                  // the nested CV's own artifact_id. Without this fallback the
-                  // editor shows "no mappings" when the parent didn't declare
-                  // required columns during upload.
-                  const ownMappings = allMappings.filter(m => m.artifact_id === baseMatch.id)
-                  node.mappings = [...joinMappings, ...ownMappings]
-                }
+                const allMappings = session?.global_mappings || []
+                // Only the base's own mapping info rows. The base's own
+                // artifact_id is the source of truth for these rows; the
+                // parent-side join mappings (parent_id, scoped source_ref)
+                // belong to the parent's column-mapping editor, not this one.
+                const ownMappings = allMappings.filter(m => m.artifact_id === baseMatch.id)
+                node.mappings = ownMappings
+                // ownerArtifactId stays as-is (the base's own artifact_id) so
+                // the modal saves back to the right place.
+                node.ownerArtifactId = baseMatch.id
               } else {
                 // Fallback: search by artifact_id (defensive — should not normally happen)
                 if (artifactId) {
@@ -1340,6 +1348,7 @@ export default function NestedCVTool() {
                 mainLabel={root.name || "Calculation Main View name"}
                 mainBackendId={root.artifactId}
                 mainLinkedSources={mainLinkedSources}
+                mainMappingCount={mainMappingCount}
                 bases={allBases}
                 onMappingClick={handleMapping}
                 onRemoveBase={handleRemove}
@@ -1562,8 +1571,13 @@ export default function NestedCVTool() {
             onUploadXlsx={async file => {
               if (!session) return { success: false, error: "No session" }
               const response = await nestedAddCvFromXlsx(session.session_id, file, undefined, undefined, true)
+              // Inspect endpoint returns the parsed payload directly (no
+              // wrapping `{ success: true, ... }`), so response.success is
+              // undefined and the modal would treat every upload as failed.
+              // Default to true for inspect responses — a populated payload
+              // IS success; failures surface through response.error.
               return {
-                success: response.success,
+                success: response.success ?? true,
                 sql_info: response.sql_info || [],
                 source_tables: response.source_tables || [],
                 output_columns: response.output_columns || [],

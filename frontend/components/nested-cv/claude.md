@@ -150,22 +150,28 @@ PARENT's artifact_id scoped by `source_ref_canonical`. `buildLinkedSourcesFor`
 takes optional `parentArtifactId` + `parentSourceRef` to find them correctly.
 Forgetting this returns `[]` and the linkage badge reads "0".
 
-### Column mappings for a nested CV — where to look
-There are TWO sets of mappings for a nested CV base node:
+### Column mappings for a base node — own only
+The "Column Mapping" button on a base node shows ONLY the base's OWN mapping
+info rows. The base's `mapping info` is the XLSX the user uploaded for that
+base — its source→target column map. Other base rows (parent-side join
+mappings, the root's mappings) are NOT shown here.
 
-1. **Join mappings** — `global_mappings` where `artifact_id = parent_artifact_id`
-   AND `source_ref_canonical = baseMatch.sourceRef`. These are created by the
-   toggle→upload→join flow when the user confirms the auto-built column mapping.
-   If the parent didn't declare required columns, this set may be EMPTY.
-2. **Own mapping info rows** — `global_mappings` where `artifact_id = baseMatch.id`,
-   plus `session.artifacts[baseMatch.id].mapping_rows`. These come from the
-   nested CV's own uploaded Excel.
+In `NestedCVTool.tsx` `handleMapping(...)`, the base branch sets:
 
-`handleMapping` loads BOTH sets (`[...joinMappings, ...ownMappings]`) and
-`openMappingEditor` falls back to `artifact.mapping_rows` if BOTH are empty.
-Without this fallback, a nested CV whose parent didn't declare required
-columns shows "No column mappings are available" even though the artifact
-itself has mapping info.
+```typescript
+node.mappings = allMappings.filter(m => m.artifact_id === baseMatch.id)
+node.ownerArtifactId = baseMatch.id
+```
+
+This is the source of truth. `openMappingEditor(...)` then falls back to
+`session.artifacts[baseMatch.id].mapping_rows` if the global list is empty
+(so a base whose rows only exist in `mapping_rows` still shows its data).
+
+**Do NOT re-introduce join mappings into the base node's editor.** They
+describe how the parent consumes the base — they belong to the parent
+context, not the base's own mapping_info. Mixing them confused users by
+showing parent rows in the base editor and saved edits back to the
+wrong artifact_id.
 
 ### Mapping-info sheet column names
 The XLSX `mapping info` sheet uses Excel-native column names:
@@ -215,6 +221,30 @@ flat grids — multi-layer trees become unreadable.
 - NestedColumnMappingModal: `z-[80]`
 - Fullscreen result editor: `z-[60]` BUT auto-disables when ANY modal is open
   so the user can interact with the modal normally.
+
+### Linkage dropdown direction (base nodes)
+In `NestedCVTool.tsx` `walkArtifact(...)`, the **base** node's `linkedSources`
+is built via `buildLinkedSourcesFor(session, producerId)` — WITHOUT parent
+args. The dropdown shows the base's OWN sources (its dependencies / children),
+not the parent's source context. The dropdown is for linking NEW nested CVs as
+children of this base, so listing the source_ref that was used to link THIS
+base (the parent direction) was wrong and would force the user to add children
+in the wrong direction.
+
+**Do NOT re-introduce the parent args.** The join-style mappings for the base
+(parent's mappings scoped to `source_ref_canonical`) are still loaded by
+`handleMapping(...)` for the column-mapping editor — they live in the handler,
+not the graph props.
+
+### Edge source id translation (root → first nested edge)
+The main node's ReactFlow `id` is the constant `MAIN_ID = "main-view"`, but
+`base.parentId` for first-level nested CVs is the root artifact's backend id.
+In `FlowBuilder.tsx` `buildInitialEdges(...)`, the edge source is translated
+from `mainBackendId` → `MAIN_ID` so ReactFlow can resolve the source node.
+Without this translation, the first edge in a multi-level chain
+(sales_fact → intermediate → base) is silently dropped — only the
+intermediate → base edge renders. **Keep the translation.** The knownIds
+filter check still uses `mainBackendId` for the parent-side allow-list.
 
 ---
 

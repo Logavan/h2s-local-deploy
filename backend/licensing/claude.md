@@ -119,9 +119,13 @@ python -m licensing apply new_license.json
 |------------------------------|----------|----------------------------------------------------|----------------------------------------------------------|
 | `LICENSE_PATH`               | No       | `./license.json`, then `backend/license.json`      | Override license location                                |
 | `LICENSE_PUBLIC_KEY_PATH`    | No       | `licensing/keys/public.pem`                        | Override bundled public key (used by tests + smoke runs)  |
-| `H2S_SKIP_LICENSE`           | No       | unset                                              | Set to `1` to bypass verification (development only)     |
 | `H2S_LICENSE_ID`             | No       | `UNKNOWN`                                          | Used by `request-rebind` if no license file exists       |
 | `H2S_PREV_MACHINE_HASH`      | No       | `UNKNOWN`                                          | Used by `request-rebind` if no license file exists       |
+
+Note: there is no `H2S_SKIP_LICENSE` escape hatch and no `dev_mode` license
+flag. Every license — local development or production — is bound to a
+specific machine fingerprint via the same code path. See "Solo-dev
+onboarding" below for how local dev gets a license.
 
 ## Flask integration
 
@@ -170,11 +174,39 @@ Without host-bind mounts the container falls back to the container ID as a weak 
 3. **Signature detail is redacted from logs.** Operators see the exception type + one-line summary; the signature blob is never logged.
 4. **Stable hash ordering.** The canonical payload uses `json.dumps(sort_keys=True, separators=(",", ":"))` so signer and verifier agree on bytes across Python versions.
 5. **No plaintext license logging.** `/health` exposes `license_id`, `customer`, `expires_at`, and `machine_hash[:16]+"..."`. Raw fingerprint, signature, and identifiers are never returned over HTTP.
-6. **`H2S_SKIP_LICENSE=1` exists only for local development.** It must never be set in production env files.
+6. **No license-skip escape hatch and no dev-mode bypass.** Earlier versions exposed `H2S_SKIP_LICENSE=1` for local dev, and later a signed `dev_mode: true` flag; both have been removed. Every license is bound to a specific machine fingerprint — local dev included. See "Solo-dev onboarding" below.
+
+## Solo-dev onboarding (`laptop-license.json`)
+
+For local development, the repo ships a vendor-signed `laptop-license.json` at the repo root bound to the developer's machine fingerprint. It is verified through the same code path as a production license — RSA signature, expiry, and machine binding all enforced.
+
+```bash
+# Clone + run — works out of the box for THIS laptop
+git clone <repo>
+cd h2s-local-deploy
+docker compose -f docker-compose.enterprise.yml up --build
+# /health returns: license_id=H2S-LAPTOP-..., customer=Logavan (...)
+```
+
+If you clone onto a different laptop, the existing `laptop-license.json` will be rejected (`MachineMismatchError`). To get a working license on the new host:
+
+```bash
+# 1. Generate the new machine fingerprint
+cd backend
+python -m licensing info
+
+# 2. Edit laptop-license.json — set machine_hash to the new short hash,
+#    bump expires_at, leave signature as ""
+
+# 3. Re-sign with the vendor private key
+python -m licensing sign ../laptop-license.json --private-key ../vendor-keys/private.pem
+```
+
+For customer deployments, the customer runs `python -m licensing info` on their VM and emails the short fingerprint to the vendor; the vendor signs `license.json` against it and the customer mounts it at `/etc/license.d/license.json` per the docker-compose file.
 
 ## Tests
 
-`backend/tests/test_licensing.py` — 11 tests covering:
+`backend/tests/test_licensing.py` — 15 tests covering:
 
 - Fingerprint stability (deterministic across calls)
 - SHA-256 length (16-char short, 64-char full)
@@ -184,6 +216,8 @@ Without host-bind mounts the container falls back to the container ID as a weak 
 - `verify_or_raise()` accepts valid license
 - `verify_or_raise()` rejects expired license
 - `verify_or_raise()` rejects machine mismatch (mocked fingerprint)
+- Binary integrity: matching sha256 passes
+- Binary integrity: mismatching sha256 fails
 
 ```bash
 cd backend

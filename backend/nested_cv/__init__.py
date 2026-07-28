@@ -10,8 +10,12 @@ from .session_store import NestedSessionStore, get_session_store
 from .artifact_parser import parse_mapping_content
 from .dependency_graph import build_graph, auto_resolve_links, DependencyGraph
 from .mapping_service import MappingService
-from .sql_composer import compose_sql, get_dialect_adapter
-from .pyspark_composer import compose_pyspark
+from .orchestrator import (
+    compose_chained_sql,
+    compose_chained_pyspark,
+    compose_for_session,
+    make_cte_name,
+)
 from .tasks import start_generation_task
 
 __all__ = [
@@ -29,9 +33,9 @@ __all__ = [
     "build_graph", "auto_resolve_links", "DependencyGraph",
     # mapping
     "MappingService",
-    # composers
-    "compose_sql", "get_dialect_adapter",
-    "compose_pyspark",
+    # orchestrator (multi-artifact chaining)
+    "compose_chained_sql", "compose_chained_pyspark", "compose_for_session",
+    "make_cte_name",
     # tasks
     "start_generation_task",
 ]

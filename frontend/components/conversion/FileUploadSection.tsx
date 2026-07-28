@@ -211,6 +211,17 @@ export function FileUploadSection({
     }
   }
 
+  // Keyboard activation for the upload dropzone. The wrapper div is not a
+  // native <button> so we wire Enter / Space to the same click handler.
+  // Native drag-drop continues to work via the existing onDragOver/onDrop.
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (disabled) return
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault()
+      handleFileUploadClick()
+    }
+  }
+
   // Get the appropriate icon based on animation step
   const getAnimatedIcon = () => {
     if (showSuccessAnimation) {
@@ -252,7 +263,7 @@ export function FileUploadSection({
   return (
     <div className="w-full mb-6">
       <div
-        className={`relative overflow-hidden border-2 border-dashed rounded-lg transition-all duration-300 ${
+        className={`relative overflow-hidden border-2 border-dashed rounded-lg transition-all duration-300 outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
           disabled
             ? "border-gray-200 bg-gray-50 cursor-not-allowed opacity-60"
             : isDragging
@@ -266,6 +277,11 @@ export function FileUploadSection({
         onDragLeave={disabled ? undefined : handleDragLeave}
         onDrop={disabled ? undefined : handleDrop}
         onClick={disabled ? undefined : handleFileUploadClick}
+        onKeyDown={handleKeyDown}
+        role="button"
+        tabIndex={disabled ? -1 : 0}
+        aria-label="Upload XML or TXT file. Press Enter or Space to browse."
+        aria-disabled={disabled}
         onMouseEnter={() => !disabled && setIsHovering(true)}
         onMouseLeave={() => !disabled && setIsHovering(false)}
       >

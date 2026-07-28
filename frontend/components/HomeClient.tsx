@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import ConversionTool from "@/components/ConversionTool"
 import MappingTool from "@/components/MappingTool"
 import NestedCVTool from "@/components/nested-cv/NestedCVTool"
-import TabSwitcher from "@/components/TabSwitcher"
+import TabSwitcher, { getTabDomId, getTabPanelDomId } from "@/components/TabSwitcher"
 import { useAuth } from "@/contexts/AuthContext"
 import { useSearchParams } from "next/navigation"
 import { HorizontalReviewsCarousel } from "@/components/HorizontalReviewsCarousel"
@@ -106,6 +106,9 @@ export default function HomeClient() {
                         <AnimatePresence mode="wait">
                             <motion.div
                                 key={activeTab}
+                                id={getTabPanelDomId(activeTab as "converter" | "mapper" | "nested")}
+                                role="tabpanel"
+                                aria-labelledby={getTabDomId(activeTab as "converter" | "mapper" | "nested")}
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -10 }}
