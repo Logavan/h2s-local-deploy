@@ -101,7 +101,7 @@ Dockerfile.enterprise
 
 ### HANA CV Converter
 - `local_storage.save_result()` writes to `OUTPUT_DIR/<cv_object_name>_<timestamp>/`
-- Structure: `<OUTPUT_DIR>/<cv_object_name>_<timestamp>/<cv_object_name>.zip` + `_mapping_sheet.xlsx` + `_manifest.json`
+- Structure: `<OUTPUT_DIR>/<cv_object_name>_<timestamp>/<cv_object_name>.zip` + `<cv_object_name>.xlsx` + `_manifest.json`
 - **Results persist forever — no automatic cleanup**
 - Lookups by `task_id` work via `_manifest.json` scan (backwards compatible)
 

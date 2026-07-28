@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Handle, Position, type NodeProps } from "@xyflow/react"
 import { ChevronDown, ChevronRight, Link2, X } from "lucide-react"
 
@@ -21,6 +21,10 @@ export interface CalculationNodeData extends Record<string, unknown> {
   isResolved?: boolean
   sourceRef?: string
   linkedSources?: LinkedSource[]
+  /** Total column-mapping rows for this artifact (from mapping info). */
+  mappingCount?: number
+  /** Depth level in the multi-layer tree (0 = root). Drives visual styling. */
+  depth?: number
   onMappingClick?: (nodeId: string, mappingType: "Column Mapping" | "Table Mapping") => void
   onRemove?: (nodeId: string) => void
   onResolve?: (nodeId: string) => void
@@ -36,10 +40,32 @@ const HANDLE_STYLE: React.CSSProperties = {
   zIndex: 10,
 }
 
+// Per-depth visual theme for nested layers. Keeps each level visually
+// distinct so users can tell at a glance which layer of the tree a node
+// belongs to. Layers cycle if depth exceeds the table length.
+const depthColors = [
+  { bg: "#fef3e2", fg: "#9a3412", border: "#fdba74" }, // L1: amber (root-ish)
+  { bg: "#ecfeff", fg: "#155e75", border: "#67e8f9" }, // L2: cyan
+  { bg: "#f0fdf4", fg: "#166534", border: "#86efac" }, // L3: green
+  { bg: "#fdf4ff", fg: "#86198f", border: "#f0abfc" }, // L4: fuchsia
+  { bg: "#f1f5f9", fg: "#334155", border: "#cbd5e1" }, // L5+: slate
+]
+
 export default function CalculationNode({ id, data }: NodeProps) {
   const nodeData = data as CalculationNodeData
   const isMain = nodeData.variant === "main"
   const [showLinkageDropdown, setShowLinkageDropdown] = useState(false)
+
+  // Close the linkage dropdown on Escape so keyboard users can dismiss it
+  // without having to find and click elsewhere on the canvas.
+  useEffect(() => {
+    if (!showLinkageDropdown) return
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setShowLinkageDropdown(false)
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [showLinkageDropdown])
 
   const borderColor = isMain ? "#f5a623" : "#c0c0c0"
   const headerBg = isMain ? "#fef3e2" : "#f5f5f5"
@@ -64,16 +90,20 @@ export default function CalculationNode({ id, data }: NodeProps) {
         gap: 12,
       }}
     >
-      {/* Target handle - where edges END (receiving end) - centered vertically */}
-      <Handle
-        type="target"
-        position={isMain ? Position.Right : Position.Left}
-        style={{
-          ...HANDLE_STYLE,
-          top: "50%",
-          transform: "translateY(-50%)",
-        }}
-      />
+      {/* Target handle - where edges END (receiving end). The main view has no
+          incoming edges in this layout, so we skip it on the main node to
+          avoid a confusing dead dot on the right side. */}
+      {!isMain && (
+        <Handle
+          type="target"
+          position={Position.Left}
+          style={{
+            ...HANDLE_STYLE,
+            top: "50%",
+            transform: "translateY(-50%)",
+          }}
+        />
+      )}
       {/* Source handle - where edges START (sending end) - centered vertically */}
       <Handle
         type="source"
@@ -135,6 +165,49 @@ export default function CalculationNode({ id, data }: NodeProps) {
         {nodeData.label || "Untitled"}
       </div>
 
+      {/* Visible badges: mapping count + layer depth. Helps users see at a
+          glance that a CV has editable mappings and where it sits in the
+          multi-layer tree without having to right-click. Pill is only
+          rendered when there's actually something to show — a "0 mappings"
+          label is noise. */}
+      {((nodeData.mappingCount !== undefined && nodeData.mappingCount > 0)
+        || (nodeData.depth !== undefined && nodeData.depth > 0)) && (
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: -4 }}>
+          {nodeData.mappingCount !== undefined && nodeData.mappingCount > 0 && (
+            <span
+              title="Column mapping rows from this CV's mapping info sheet"
+              style={{
+                fontSize: 10,
+                fontWeight: 600,
+                padding: "2px 6px",
+                borderRadius: 10,
+                background: "#e0f2fe",
+                color: "#0369a1",
+                border: "1px solid #7dd3fc",
+              }}
+            >
+              {nodeData.mappingCount} mapping{nodeData.mappingCount === 1 ? "" : "s"}
+            </span>
+          )}
+          {nodeData.depth !== undefined && nodeData.depth > 0 && (
+            <span
+              title={`Layer ${nodeData.depth} of the nested CV tree`}
+              style={{
+                fontSize: 10,
+                fontWeight: 600,
+                padding: "2px 6px",
+                borderRadius: 10,
+                background: depthColors[nodeData.depth % depthColors.length]?.bg ?? "#f5f5f5",
+                color: depthColors[nodeData.depth % depthColors.length]?.fg ?? "#666",
+                border: `1px solid ${depthColors[nodeData.depth % depthColors.length]?.border ?? "#e0e0e0"}`,
+              }}
+            >
+              L{nodeData.depth}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Mapping buttons */}
       <div style={{ display: "flex", gap: 8 }}>
         <button
@@ -171,6 +244,8 @@ export default function CalculationNode({ id, data }: NodeProps) {
         <button
           disabled={!isMain && !nodeData.isResolved}
           onClick={() => setShowLinkageDropdown(!showLinkageDropdown)}
+          aria-expanded={showLinkageDropdown}
+          aria-haspopup="menu"
           style={{
             flex: 1,
             border: `1.5px solid ${isMain || nodeData.isResolved ? "#f5a623" : "#d0d0d0"}`,
@@ -260,6 +335,24 @@ export default function CalculationNode({ id, data }: NodeProps) {
                   }}
                   title={source.isLinked ? "Linked" : "Not linked"}
                 />
+                {/* Visible Linked/Base badge so users can distinguish
+                    nested-from-base sources without reading the dot color. */}
+                <span
+                  style={{
+                    fontSize: 9,
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: 0.5,
+                    padding: "1px 5px",
+                    borderRadius: 3,
+                    background: source.isLinked ? "#dcfce7" : "#f5f5f5",
+                    color: source.isLinked ? "#166534" : "#666",
+                    border: `1px solid ${source.isLinked ? "#86efac" : "#e0e0e0"}`,
+                    flexShrink: 0,
+                  }}
+                >
+                  {source.isLinked ? "Linked" : "Base"}
+                </span>
                 <span
                   style={{
                     overflow: "hidden",

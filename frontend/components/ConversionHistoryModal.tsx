@@ -50,7 +50,7 @@ export default function ConversionHistoryModal({ isOpen, onClose, onSelectFile }
       const result = await apiModule.downloadPreviousMapping(conversion.task_id)
 
       if (result.type === "success") {
-        const fileName = `${conversion.file_name}_mapping_sheet.xlsx`
+        const fileName = `${conversion.file_name}.xlsx`
         const file = new File([result.file], fileName, {
           type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         })

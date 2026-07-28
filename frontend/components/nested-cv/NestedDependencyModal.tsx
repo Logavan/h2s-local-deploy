@@ -1,10 +1,13 @@
 "use client"
 
-import { useState, useRef, useEffect, useMemo } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { X, Upload, History, Loader2, CheckCircle, AlertCircle, Search, FileSpreadsheet, Wand2, ArrowRight } from "lucide-react"
 import { motion } from "framer-motion"
 import { cn } from "@/lib/utils"
-import { listPreviousConversations, downloadPreviousMapping, type PreviousConversion } from "@/lib/api"
+import {
+  downloadPreviousMapping, listPreviousConversations, nestedInspectPreviousConversion,
+  type PreviousConversion,
+} from "@/lib/api"
 
 interface SqlInfoRow {
   "Source Table Name"?: string
@@ -154,9 +157,17 @@ export default function NestedDependencyModal({
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyDownloadingId, setHistoryDownloadingId] = useState<string | null>(null)
   const [historySearch, setHistorySearch] = useState("")
+  const [isEditingSourceRef, setIsEditingSourceRef] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Reset state ONLY when the modal opens (false → true transition) or when
+  // the parent context (mode/parentRef) changes. Switching tabs or other
+  // user actions inside the modal should NOT wipe a user's manual selection.
+  const lastModalContextRef = useRef<string>("")
   useEffect(() => {
+    const contextKey = `${isOpen}|${mode}|${parentRef}`
+    if (lastModalContextRef.current === contextKey) return
+    lastModalContextRef.current = contextKey
     if (!isOpen) return
     setFile(null)
     setSqlInfo([])
@@ -169,6 +180,7 @@ export default function NestedDependencyModal({
     setUploadError("")
     setActiveTab("upload")
     setHistorySearch("")
+    setIsEditingSourceRef(false)
   }, [isOpen, mode, parentRef])
 
   // ── Fetch sql_info + source_tables + output_columns when a file is provided ──────
@@ -299,22 +311,95 @@ export default function NestedDependencyModal({
     setHistoryDownloadingId(conversion.task_id)
     setUploadError("")
     try {
-      const result = await downloadPreviousMapping(conversion.task_id)
-      if (result.type === "success") {
-        const fileName = `${conversion.file_name}_mapping_sheet.xlsx`
-        const file = new File([result.file], fileName, {
-          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        })
-        setFile(file)
-        setActiveTab("upload")
-        await fetchSqlInfo(file)
-      } else {
-        setUploadError(result.message || "Failed to download file")
+      // Two parallel calls (saves a round-trip vs sequential download→upload):
+      //   1. Download the file — we still need this blob for the final
+      //      confirm step that uploads to nested_add_cv_from_xlsx.
+      //   2. Inspect — ask the server to parse the file from disk so we
+      //      don't have to re-upload it just to populate the column UI.
+      const [downloadResult, inspectResult] = await Promise.all([
+        downloadPreviousMapping(conversion.task_id),
+        nestedInspectPreviousConversion(conversion.task_id),
+      ])
+
+      if (downloadResult.type !== "success") {
+        setUploadError(downloadResult.message || "Failed to download file")
+        return
       }
+      if (!inspectResult.success) {
+        setUploadError(inspectResult.error || "Failed to inspect file")
+        return
+      }
+
+      const fileName = `${conversion.file_name}.xlsx`
+      const file = new File([downloadResult.file], fileName, {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      })
+      setFile(file)
+      setActiveTab("upload")
+      applyInspectResult({
+        success: true,
+        sql_info: inspectResult.sql_info,
+        source_tables: inspectResult.source_tables,
+        output_columns: inspectResult.output_columns,
+        last_chunk_sql: inspectResult.last_chunk_sql,
+        last_chunk_sources: inspectResult.last_chunk_sources,
+        file_name: conversion.file_name,
+      })
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : "Failed to download file")
+      setUploadError(err instanceof Error ? err.message : "Failed to load from history")
     } finally {
       setHistoryDownloadingId(null)
+    }
+  }
+
+  // Reusable: take the parsed payload from either the upload endpoint or the
+  // inspect-previous endpoint and populate the modal state. Centralizes the
+  // state-set so the upload path and the history path stay in sync.
+  function applyInspectResult(payload: {
+    success: boolean
+    sql_info?: SqlInfoRow[]
+    source_tables?: SourceTableRow[]
+    output_columns?: string[]
+    last_chunk_sql?: string
+    last_chunk_sources?: string[]
+    file_name?: string
+  }) {
+    if (!payload.success) {
+      setUploadError("Failed to parse workbook")
+      return
+    }
+    if (payload.sql_info) setSqlInfo(payload.sql_info)
+    if (payload.source_tables) setSourceTables(payload.source_tables)
+    if (payload.output_columns) {
+      setOutputColumns(payload.output_columns)
+      setColumnMappings(autoBuildColumnMappings(parentRequiredColumns, payload.output_columns))
+      setHasAutoBuiltMappings(true)
+    } else {
+      setColumnMappings([])
+    }
+    if (payload.last_chunk_sql) setLastChunkSql(payload.last_chunk_sql)
+
+    const fromSqlInfo = (payload.sql_info || [])
+      .map(row => (row["Source Table Name"] || row.source_table_name || "").trim())
+      .filter(Boolean)
+    const fromSourceTables = (payload.source_tables || [])
+      .map(row => row.source_table_name)
+      .filter(Boolean) as string[]
+    const allSourceNames = Array.from(new Set([...fromSqlInfo, ...fromSourceTables]))
+
+    if (allSourceNames.length === 0) return
+
+    if (mode === "root") {
+      setSelectedSource(allSourceNames[0])
+    } else {
+      const matched = allSourceNames.find(
+        name => name.toUpperCase() === parentRef.toUpperCase()
+      )
+      if (matched) {
+        setSelectedSource(matched)
+      } else {
+        setSelectedSource(parentRef || allSourceNames[0])
+      }
     }
   }
 
@@ -339,6 +424,7 @@ export default function NestedDependencyModal({
     setHasAutoBuiltMappings(false)
     setUploadError("")
     setActiveTab("upload")
+    setIsEditingSourceRef(false)
     onClose()
   }
 
@@ -403,8 +489,26 @@ export default function NestedDependencyModal({
 
   const filteredHistory = history.filter(c => c.file_name.toLowerCase().includes(historySearch.toLowerCase()))
 
+  // Backdrop click closes the modal unless the user has selected a file —
+  // losing a picked workbook silently is worse than forcing one extra click.
+  function handleBackdropClick(event: React.MouseEvent<HTMLDivElement>) {
+    // Only close when the click hit the backdrop itself, not a child of the dialog.
+    if (event.target !== event.currentTarget) return
+    if (file) {
+      if (window.confirm("Close without uploading? Your selected workbook will be cleared.")) {
+        handleCancel()
+      }
+      return
+    }
+    handleCancel()
+  }
+
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
+    <div
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4"
+      onClick={handleBackdropClick}
+    >
       <motion.div
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -449,7 +553,14 @@ export default function NestedDependencyModal({
             <>
               <div
                 onDragOver={e => { e.preventDefault(); setIsDragging(true) }}
-                onDragLeave={() => setIsDragging(false)}
+                // Only clear the dragging state when the drag leaves THIS element
+                // entirely (not when crossing into a child node — a common React
+                // drag-drop pitfall that causes flicker).
+                onDragLeave={event => {
+                  if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                    setIsDragging(false)
+                  }
+                }}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
                 className={cn(
@@ -686,22 +797,55 @@ export default function NestedDependencyModal({
                     </div>
                   )}
 
-                  {/* ── Manual source override (for alternative CV mapping) ────────────── */}
+                  {/* ── Source reference (read-only badge by default, editable on demand) ──
+                      The default is auto-set to parentRef. Most users don't need to override
+                      it, so we present it as a static badge and only reveal an editable
+                      input when the user explicitly clicks "Change". */}
                   <div className="pt-2">
-                    <label htmlFor="manual-source" className="block text-xs font-medium text-gray-600 mb-1">
-                      Source reference <span className="text-gray-400">(defaults to parent: <span className="font-mono">{parentRef}</span>)</span>
-                    </label>
-                    <input
-                      id="manual-source"
-                      type="text"
-                      value={selectedSource}
-                      onChange={e => setSelectedSource(e.target.value)}
-                      placeholder={parentRef || "Source table or view name"}
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg font-mono focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary"
-                    />
-                    <p className="text-[11px] text-gray-500 mt-1">
-                      Change this if you prefer a different source name than <span className="font-mono">{parentRef}</span>.
-                    </p>
+                    <p className="text-xs font-medium text-gray-600 mb-1">Source reference</p>
+                    {!isEditingSourceRef ? (
+                      <div className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg bg-gray-50">
+                        <span className="font-mono text-sm text-gray-800 flex-1 truncate" title={selectedSource || parentRef}>
+                          {selectedSource || parentRef || <span className="text-gray-400 italic">not set</span>}
+                        </span>
+                        <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-gray-200 text-gray-600">
+                          auto
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setIsEditingSourceRef(true)}
+                          className="text-xs text-secondary hover:underline"
+                        >
+                          Change
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        <input
+                          id="manual-source"
+                          type="text"
+                          value={selectedSource}
+                          onChange={e => setSelectedSource(e.target.value)}
+                          placeholder={parentRef || "Source table or view name"}
+                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg font-mono focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary"
+                        />
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[11px] text-gray-500">
+                            Defaults to <span className="font-mono">{parentRef}</span>.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedSource(parentRef || "")
+                              setIsEditingSourceRef(false)
+                            }}
+                            className="text-[11px] text-gray-500 hover:text-secondary"
+                          >
+                            Reset to default
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -710,10 +854,7 @@ export default function NestedDependencyModal({
 
           {activeTab === "history" && (
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-gray-500">
-                  Source: <code className="bg-gray-100 px-1 rounded">PREVIOUS_CONVERSIONS_DIR</code> or fallback to <code className="bg-gray-100 px-1 rounded">OUTPUT_DIR</code>.
-                </p>
+              <div className="flex items-center justify-end">
                 <button onClick={loadHistory} disabled={historyLoading} className="text-xs text-secondary hover:underline disabled:opacity-50">Refresh</button>
               </div>
               <div className="relative">

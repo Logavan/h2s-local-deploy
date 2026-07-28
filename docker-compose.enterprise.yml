@@ -1,5 +1,42 @@
 version: '3.8'
 
+# HANACV2SQL Enterprise — Docker Compose
+#
+# ============================================================================
+# ADMIN SETUP (one-time, by customer's admin team)
+# ============================================================================
+#
+# 1. Get the customer's machine fingerprint:
+#      On the target VM, run: cat /etc/machine-id
+#    Send that string to the vendor — they will issue a signed license.json.
+#
+# 2. Choose ONE of the three secret-injection methods below (env-file is
+#    the simplest; Docker secrets are best for Swarm/Compose v3.5+; vault
+#    is best for enterprise secret-management setups).
+#
+# 3. Place the signed `license.json` next to this file (or in any path on
+#    the host) — it is mounted read-only into the container.
+#
+# 4. Run: `docker compose -f docker-compose.enterprise.yml up -d`
+#
+# USERS (everyone else) just open http://<host>:3000 in a browser. They
+# never set environment variables, never edit configuration files, never
+# restart the container.
+#
+# ============================================================================
+# LICENSE HOST-BINDING (do not remove these mounts)
+# ============================================================================
+# Without these the license binds to the ephemeral container ID and breaks
+# on every restart. With them the license binds to the customer's VM.
+#
+#   /etc/machine-id                        → /host/etc/machine-id:ro
+#   /sys/class/dmi/id/product_uuid         → /host/sys/class/dmi/id/product_uuid:ro
+#   ./license.json                         → /etc/license.d/license.json:ro
+#
+# ============================================================================
+# SECRET INJECTION — pick ONE method
+# ============================================================================
+
 services:
   frontend:
     build:
@@ -14,6 +51,11 @@ services:
       - backend
     networks:
       - hanacv2sql-network
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    security_opt:
+      - no-new-privileges:true
 
   backend:
     build:
@@ -25,11 +67,65 @@ services:
       - PORT=8080
       - FLASK_ENV=production
       - OUTPUT_DIR=/data/outputs
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      # License host-bind paths — read by backend/licensing/fingerprint.py
+      - LICENSE_HOST_MACHINE_ID_PATH=/host/etc/machine-id
+      - LICENSE_HOST_DMI_UUID_PATH=/host/sys/class/dmi/id/product_uuid
+
+      # ----- METHOD A: env-file (literal values) ---------------------------
+      # Inject the Gemini key (and any other secrets) as a literal env var.
+      # The file `/etc/hanacv2sql/secrets.env` lives on the host, chmod 600.
+      # The container reads it once at start time via _FILE convention.
+      - GEMINI_API_KEY_FILE=/run/secrets/gemini_api_key
+      # Or, simpler, set the literal value:
+      # - GEMINI_API_KEY=${GEMINI_API_KEY}
+
+      # ----- METHOD B: Docker secret (swarm / compose v3.5+) ---------------
+      # See `secrets:` block below; map into env via *_FILE convention.
+
+      # ----- METHOD C: External vault (HashiCorp Vault, AWS SM, etc.) ------
+      # Run a vault-agent sidecar that writes secrets to a tmpfs the backend
+      # reads via *_FILE. Out of scope for this compose — see SECURITY.md.
+
     volumes:
+      # App data
       - ./data/outputs:/data/outputs
+
+      # LICENSE HOST-BIND — bind the license to the customer's VM
+      - /etc/machine-id:/host/etc/machine-id:ro
+      - /sys/class/dmi/id/product_uuid:/host/sys/class/dmi/id/product_uuid:ro
+      - ./license.json:/etc/license.d/license.json:ro
+
+      # ----- METHOD A: env-file path ---------------------------------------
+      # Admin-created secrets file on the host, chmod 600. File contents:
+      #   GEMINI_API_KEY=AIza...
+      #   H2S_HMAC_KEY=<random base64 32 bytes>
+      # Optional: rotate by editing the file and `docker compose restart backend`.
+      # - /etc/hanacv2sql/secrets.env:/run/secrets/all.env:ro
+
+      # ----- METHOD B: Docker secret bind (for compose secrets block) ------
+      # The `secrets:` block at the bottom of this file declares two named
+      # secrets. They are bound into /run/secrets/ and the app reads them via
+      # the *_FILE env vars above.
+
+    secrets:
+      - gemini_api_key
+      - hmac_key
+
     networks:
       - hanacv2sql-network
+
+    # Read-only root filesystem — only declared volumes are writable
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+      - /data/outputs:size=512m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE  # only if binding to port 80; remove if not needed
+
     healthcheck:
       test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8080/health', timeout=5).raise_for_status()"]
       interval: 30s
@@ -39,3 +135,20 @@ services:
 networks:
   hanacv2sql-network:
     driver: bridge
+
+# -----------------------------------------------------------------------------
+# METHOD B — Docker secrets
+# -----------------------------------------------------------------------------
+# Provision the secrets once, before the first `docker compose up`:
+#
+#   echo "AIza..." | docker secret create gemini_api_key -
+#   openssl rand -base64 32 | docker secret create hmac_key -
+#
+# On Swarm, secrets are mounted at /run/secrets/<name>. The backend reads
+# them via the GEMINI_API_KEY_FILE / H2S_HMAC_KEY_FILE env vars above.
+# -----------------------------------------------------------------------------
+secrets:
+  gemini_api_key:
+    external: true
+  hmac_key:
+    external: true

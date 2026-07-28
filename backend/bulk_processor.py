@@ -105,7 +105,7 @@ def convert_single_file(file_content: str, file_name: str, task_id: str, node_co
             "sql_url": sql_url,
             "data_mapping_url": data_mapping_url,
             "download_name": f"{cv_object_name}_converted.zip",
-            "mapping_download_name": f"{cv_object_name}_mapping_sheet.xlsx"
+            "mapping_download_name": f"{cv_object_name}.xlsx"
         }
 
     except Exception as e:

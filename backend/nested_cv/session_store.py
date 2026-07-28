@@ -111,6 +111,28 @@ class NestedSessionStore:
                 return True
             return False
 
+    def request_cancel(self, task_id: str) -> bool:
+        """Mark a task as cancelled. The background worker checks this flag
+        between its progress updates and bails out cleanly. Returns True if
+        the task existed and was cancellable (PENDING or IN_PROGRESS)."""
+        with self._lock:
+            task = self._tasks.get(task_id)
+            if not task:
+                return False
+            if task.status in ("COMPLETED", "FAILED", "CANCELLED"):
+                return False
+            task._cancel_requested = True  # type: ignore[attr-defined]
+            task.updated_at = datetime.utcnow().isoformat()
+            return True
+
+    def is_cancel_requested(self, task_id: str) -> bool:
+        """Worker-side check: returns True if the user asked to cancel."""
+        with self._lock:
+            task = self._tasks.get(task_id)
+            if not task:
+                return False
+            return bool(getattr(task, "_cancel_requested", False))
+
 
 # Global singleton
 _store = NestedSessionStore()

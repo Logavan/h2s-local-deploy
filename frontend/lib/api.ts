@@ -1001,11 +1001,30 @@ export async function nestedGetTaskStatus(
   }
 }
 
-export async function nestedDownloadResult(
+export async function nestedCancelTask(
   taskId: string
-): Promise<{ type: "success" | "error"; message?: string }> {
+): Promise<{ success: boolean; cancelled: boolean; status?: string; message?: string; error?: string }> {
   try {
-    const response = await fetchWithTimeout(`${apiUrl}/api/nested/tasks/${taskId}/download`, {
+    const response = await fetchWithTimeout(`${apiUrl}/api/nested/tasks/${taskId}`, {
+      method: "DELETE",
+    })
+    return handleResponse<{ success: boolean; cancelled: boolean; status?: string; message?: string }>(response)
+  } catch (error) {
+    console.error("Failed to cancel nested task:", error)
+    return { success: false, cancelled: false, error: error instanceof Error ? error.message : "Cancel failed" }
+  }
+}
+
+export async function nestedDownloadResult(
+  taskId: string,
+  filename?: string
+): Promise<{ type: "success" | "error"; message?: string; filename?: string }> {
+  try {
+    // Pass the user's chosen filename to the server via query param so the
+    // Content-Disposition header carries the right name. The server sanitizes
+    // it; the response's Content-Disposition is the authoritative source.
+    const query = filename ? `?filename=${encodeURIComponent(filename)}` : ""
+    const response = await fetchWithTimeout(`${apiUrl}/api/nested/tasks/${taskId}/download${query}`, {
       method: "GET",
     })
 
@@ -1018,21 +1037,36 @@ export async function nestedDownloadResult(
       throw new Error(errorMessage)
     }
 
+    // Extract the server-provided filename from Content-Disposition when
+    // present (covers server-side rename); fall back to the requested name,
+    // then a timestamped default.
+    let resolvedName = filename
+    const disposition = response.headers.get("Content-Disposition") || ""
+    const match = disposition.match(/filename\*?=(?:UTF-8'')?["']?([^"';]+)["']?/i)
+    if (match && match[1]) {
+      try {
+        resolvedName = decodeURIComponent(match[1])
+      } catch {
+        resolvedName = match[1]
+      }
+    }
+    if (!resolvedName) {
+      const now = new Date()
+      const timestamp = now.toISOString().replace(/[:.]/g, "-").slice(0, 19)
+      resolvedName = `nested_cv_merged_${timestamp}.sql`
+    }
+
     const blob = await response.blob()
     const downloadUrl = URL.createObjectURL(blob)
-    const now = new Date()
-    const timestamp = now.toISOString().replace(/[:.]/g, "-").slice(0, 19)
-    const filename = `nested_cv_merged_${timestamp}.sql`
-
     const link = document.createElement("a")
     link.href = downloadUrl
-    link.download = filename
+    link.download = resolvedName
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
     URL.revokeObjectURL(downloadUrl)
 
-    return { type: "success", message: "Downloaded successfully" }
+    return { type: "success", message: "Downloaded successfully", filename: resolvedName }
   } catch (error) {
     console.error("Nested CV download failed:", error)
     return { type: "error", message: error instanceof Error ? error.message : "Download failed" }
@@ -1085,6 +1119,31 @@ export async function listPreviousConversations(): Promise<{
   }
 }
 
+export async function nestedInspectPreviousConversion(
+  taskId: string
+): Promise<{
+  success: boolean
+  file_name?: string
+  sql_info?: Record<string, string>[]
+  mapping_info?: Record<string, string>[]
+  source_tables?: { source_table_name: string; source_field?: string; target_table?: string }[]
+  output_columns?: string[]
+  last_chunk_sql?: string
+  last_chunk_sources?: string[]
+  error?: string
+}> {
+  try {
+    const response = await fetchWithTimeout(
+      `${apiUrl}/api/nested/previous_conversions/${encodeURIComponent(taskId)}/inspect`,
+      { method: "GET" },
+    )
+    return handleResponse(response)
+  } catch (error) {
+    console.error("Failed to inspect previous conversion:", error)
+    return { success: false, error: error instanceof Error ? error.message : "Inspect failed" }
+  }
+}
+
 export async function downloadPreviousMapping(
   taskId: string
 ): Promise<{ type: "success"; file: File } | { type: "error"; message: string }> {
@@ -1098,7 +1157,7 @@ export async function downloadPreviousMapping(
     }
 
     const blob = await response.blob()
-    const fileName = `${taskId}_mapping_sheet.xlsx`
+    const fileName = `${taskId}.xlsx`
     const file = new File([blob], fileName, {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     })

@@ -1,3 +1,16 @@
+# =============================================================================
+# Performance: configure environment BEFORE importing heavy Google SDKs.
+# The `google.cloud.bigquery` client is loaded transitively via
+# `from file_processor import ...` below; setting GOOGLE_CLOUD_DISABLE_GRPC
+# afterwards has no effect, so we set it here at the very top to skip the
+# gRPC transport and use REST instead. The actual assignment is performed
+# immediately after `import os` further down (you can't call `os.environ`
+# before the module is bound). This is a no-op if the var is already set
+# in the environment (e.g. in Cloud Run / Docker). All existing logic is
+# preserved — the duplicate assignment lower in this file simply re-asserts
+# the same value.
+# =============================================================================
+
 from flask import Flask, request, jsonify, send_file, abort, redirect
 import asyncio
 from flask_cors import CORS
@@ -17,6 +30,11 @@ import threading
 import signal
 import time
 import atexit
+
+# (Performance) Apply the env var described in the header comment above.
+# Runs as the first thing after `import os`, before any heavy Google SDK
+# imports further below.
+os.environ.setdefault("GOOGLE_CLOUD_DISABLE_GRPC", "true")
 
 # Load .env BEFORE any application imports that might read config/settings
 if not os.getenv("K_SERVICE"):
@@ -49,6 +67,8 @@ from nested_cv import (
 )
 from excel_encrypt import decrypt_xlsx_file
 from api_client import api_call_flash, api_call
+from licensing.verifier import check_or_exit, quick_status
+from hmac_auth import install_hmac_middleware
 import base64
 
 from urllib.parse import urlparse
@@ -98,7 +118,14 @@ def sanitize_json_data(data):
 
 def create_app():
     """Application factory pattern for better testing and configuration"""
+    # License gate — runs before Flask is constructed so we never bind to a
+    # port with an invalid license. Operator escape hatch: H2S_SKIP_LICENSE=1.
+    # `__file__` here is flask_app.py — the binary integrity check verifies
+    # *this* file, not whatever __main__ happens to be (e.g. unittest's runner).
+    _license_info = check_or_exit(entrypoint=__file__)
+
     app = Flask(__name__)
+    app.config["LICENSE_INFO"] = _license_info
 
     # Configure CORS with more permissive settings for development
     CORS(app, resources={r"/*": {"origins": "*"}})
@@ -109,6 +136,10 @@ def create_app():
 
     # Explicitly set Flask's debug mode based on environment
     app.debug = not IS_CLOUD_RUN
+
+    # Install HMAC request-signing middleware on protected API routes.
+    # Public endpoints (/health, /api/status) are exempt.
+    install_hmac_middleware(app)
 
     @app.route('/', methods=['GET', 'OPTIONS'])
     def root():
@@ -139,7 +170,14 @@ def create_app():
             "status": "healthy",
             "service": "hana-cv-converter",
             "version": "1.0.0",
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
+            "license": {
+                "license_id": _license_info.license_id,
+                "customer": _license_info.customer,
+                "expires_at": _license_info.expires_at,
+                "days_remaining": _license_info.days_remaining,
+                "is_container": _license_info.is_container,
+            },
         }), 200
 
     @app.route("/api/status", methods=['GET', 'OPTIONS'])
@@ -148,6 +186,27 @@ def create_app():
         if request.method == 'OPTIONS':
             return '', 200
         return jsonify({"status": "alive", "timestamp": datetime.now().isoformat()}), 200
+
+    @app.route("/api/hmac/key", methods=['GET', 'OPTIONS'])
+    def get_hmac_key():
+        """Hand the current HMAC signing key to the frontend.
+
+        Endpoint is exempt from HMAC verification (it must be reachable before
+        the frontend has a key to sign with). In production this should be
+        fronted by HTTPS and rate-limited; the backend already requires a
+        valid license to serve traffic, so this key is only accessible to
+        parties that already hold a valid license.
+        """
+        if request.method == 'OPTIONS':
+            return '', 200
+        # Pull the same key the middleware uses
+        from hmac_auth import _get_signing_key
+        import base64 as _b64
+        key_bytes = _get_signing_key()
+        return jsonify({
+            "key": _b64.b64encode(key_bytes).decode("ascii"),
+            "rotates_at": (datetime.now().timestamp() + 300) * 1000,  # ms epoch
+        }), 200
 
     @app.route("/container-shutdown", methods=["POST"])
     def container_shutdown():
@@ -417,7 +476,7 @@ def _perform_conversion_task(task_id, xml_content, file_name, user_email, target
                 "sql_content": zip_file_content,
                 "mapping_content": data_mapping_content,
                 "sql_download_name": f"{cv_object_name}_converted.zip",
-                "mapping_download_name": f"{cv_object_name}_mapping_sheet.xlsx"
+                "mapping_download_name": f"{cv_object_name}.xlsx"
             }
         })
         logger.info(f"Task {task_id}: Background conversion completed successfully.")
@@ -550,7 +609,7 @@ def get_conversion_status(task_id):
 def list_previous_conversions():
     """
     List all available mapping files from previous conversions.
-    Scans OUTPUT_DIR (or PREVIOUS_CONVERSATIONS_DIR) for *_mapping_sheet.xlsx files.
+    Scans OUTPUT_DIR (or PREVIOUS_CONVERSIONS_DIR) for *.xlsx files.
     """
     if request.method == 'OPTIONS':
         return '', 200
@@ -575,9 +634,9 @@ def list_previous_conversions():
             mapping_file = None
             mapping_name = None
             for fname in os.listdir(task_dir):
-                if fname.endswith("_mapping_sheet.xlsx"):
+                if fname.endswith(".xlsx") and not fname.startswith("_"):
                     mapping_file = fname
-                    mapping_name = fname.replace("_mapping_sheet.xlsx", "")
+                    mapping_name = fname.replace(".xlsx", "")
                     break
 
             if mapping_file:
@@ -1258,27 +1317,13 @@ def nested_add_cv_from_xlsx(session_id):
         # Decrypt and read the XLSX (same as mapping engine)
         xls = decrypt_xlsx_file(xlsx_file, password)
 
-        sql_info_df = (
-            pd.read_excel(xls, sheet_name='sql info')
-            .astype(str)
-            .replace('nan', '')
-            .dropna(how='all')
-        )
-        mapping_info_df = (
-            pd.read_excel(xls, sheet_name='mapping info')
-            .astype(str)
-            .replace('nan', '')
-            .dropna(how='all')
-        )
-
-        sql_info_records = sql_info_df.to_dict(orient='records')
-        renamed_mapping_df = mapping_info_df.rename(columns={
-            'Original Table': 'sourceTable',
-            'Original Column': 'sourceField',
-            'New Table': 'targetTable',
-            'New Column': 'targetField'
-        })
-        mapping_records = renamed_mapping_df.to_dict(orient='records')
+        # Run the inspect-only extraction. The same helper powers the
+        # /api/nested/previous_conversions/<task_id>/inspect endpoint so the
+        # parsed shape is guaranteed identical across both paths.
+        inspect = _inspect_xlsx_workbook(xls)
+        sql_info_records = inspect["sql_info"]
+        mapping_records = inspect["mapping_info"]
+        sql_info_df = pd.DataFrame(sql_info_records)
 
         logger.info(f"[XLSX] sql_info columns: {list(sql_info_df.columns)}")
         logger.info(f"[XLSX] sql_info_records[0] keys: {list(sql_info_records[0].keys()) if sql_info_records else 'empty'}")
@@ -1407,87 +1452,12 @@ def nested_add_cv_from_xlsx(session_id):
             artifact.mapping_rows.append(entry)
 
         if inspect_only:
-            # Build a de-duplicated list of source tables from the mapping_info sheet.
-            # This is the most reliable source: every workbook has a mapping_info sheet
-            # with sourceTable/sourceField columns, even when the sql_info sheet is empty
-            # or has unexpected column names.
-            seen_source_tables: set[str] = set()
-            source_tables_list: list[dict] = []
-            for row in mapping_records:
-                src_table = str(row.get("sourceTable", row.get("Original Table", ""))).strip()
-                src_field = str(row.get("sourceField", row.get("Original Column", ""))).strip()
-                tgt_table = str(row.get("targetTable", row.get("New Table", ""))).strip()
-                if not src_table or src_table == "nan" or src_table.upper() in seen_source_tables:
-                    continue
-                seen_source_tables.add(src_table.upper())
-                source_tables_list.append({
-                    "source_table_name": src_table,
-                    "source_field": src_field,
-                    "target_table": tgt_table,
-                })
-
-            # Extract output columns from the LAST chunk SQL (which is the final output
-            # of this CV that the parent CV will reference). The columns come from
-            # SELECT aliases: e.g. "SELECT SUBSTR(...) AS datafield_year, ... AS calmonth_s".
-            # These are the actual linkage columns between parent and nested CV.
-            output_columns: list[str] = []
-            last_chunk_sql = ""
-            if sql_info_records:
-                # Sort by chunk number ascending, pick the last one
-                def _chunk_num(row):
-                    try:
-                        return int(row.get("Chunk Number", 0) or 0)
-                    except (ValueError, TypeError):
-                        return 0
-                sorted_chunks = sorted(sql_info_records, key=_chunk_num)
-                last_row = sorted_chunks[-1] if sorted_chunks else {}
-                last_chunk_sql = str(last_row.get("Chunk SQL Primary Optimized Base", "")).strip()
-                if last_chunk_sql and last_chunk_sql != "nan":
-                    # Extract ONLY the SELECT clause (between SELECT and FROM) so we
-                    # don't pick up table aliases like `scalmonth AS t1` from FROM/JOIN.
-                    select_match = re.search(
-                        r'\bSELECT\b(.*?)\bFROM\b',
-                        last_chunk_sql,
-                        re.IGNORECASE | re.DOTALL
-                    )
-                    select_clause = select_match.group(1) if select_match else last_chunk_sql
-                    # Match aliases: `AS <name>` (case-insensitive, optional double-quotes)
-                    alias_matches = re.findall(
-                        r'\bAS\s+"?([A-Za-z_][A-Za-z0-9_]*)"?\s*(?=[\s,)])',
-                        select_clause,
-                        re.IGNORECASE
-                    )
-                    # Dedupe while preserving order
-                    seen_aliases = set()
-                    for alias in alias_matches:
-                        if alias.lower() not in seen_aliases:
-                            seen_aliases.add(alias.lower())
-                            output_columns.append(alias)
-
-            # Also extract unique source tables from the last chunk's FROM clause
-            # (in case mapping_info is missing/empty but SQL has them)
-            last_chunk_sources: list[str] = []
-            if last_chunk_sql and last_chunk_sql != "nan":
-                from_matches = re.findall(
-                    r'\b(?:FROM|JOIN)\s+([A-Za-z_][A-Za-z0-9_]*)',
-                    last_chunk_sql,
-                    re.IGNORECASE
-                )
-                seen_src = set()
-                for src in from_matches:
-                    if src.lower() not in seen_src:
-                        seen_src.add(src.lower())
-                        last_chunk_sources.append(src)
-
-            return jsonify({
-                "success": True,
-                "sql_info": sql_info_records,
-                "mapping_info": mapping_records,
-                "source_tables": source_tables_list,
-                "output_columns": output_columns,
-                "last_chunk_sql": last_chunk_sql,
-                "last_chunk_sources": last_chunk_sources,
-            }), 200
+            # All inspect-only extraction is delegated to _inspect_xlsx_workbook
+            # so the same parsing powers both this endpoint and the history
+            # inspect endpoint. The returned dict has the same shape the
+            # frontend already expects: sql_info, mapping_info, source_tables,
+            # output_columns, last_chunk_sql, last_chunk_sources.
+            return jsonify(inspect), 200
 
         if parent_artifact_id:
             canonical_parent_ref = parent_source_ref.upper()
@@ -1577,6 +1547,111 @@ def nested_add_cv_from_xlsx(session_id):
         logger.error(f"nested_add_cv_from_xlsx error: {e}")
         logger.error(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
+
+
+def _inspect_xlsx_workbook(xls) -> dict:
+    """Run the inspect-only extraction over a decrypted XLSX workbook.
+
+    Returns a dict with keys: sql_info, mapping_info, source_tables,
+    output_columns, last_chunk_sql, last_chunk_sources. Used by both the
+    upload endpoint (nested_add_cv_from_xlsx) and the history inspect
+    endpoint (GET /api/nested/previous_conversions/<task_id>/inspect) so
+    the parsing logic is identical in both paths.
+    """
+    sql_info_df = (
+        pd.read_excel(xls, sheet_name='sql info')
+        .astype(str)
+        .replace('nan', '')
+        .dropna(how='all')
+    )
+    mapping_info_df = (
+        pd.read_excel(xls, sheet_name='mapping info')
+        .astype(str)
+        .replace('nan', '')
+        .dropna(how='all')
+    )
+    # Normalize the mapping_info columns to the canonical sourceTable /
+    # sourceField / targetTable / targetField shape. The upload handler
+    # reads rows by these normalized keys, so without this rename every
+    # row looks empty and gets dropped by the
+    # `if src_table and src_col` filter — silently losing the user's
+    # mapping data.
+    mapping_info_df = mapping_info_df.rename(columns={
+        "Original Table": "sourceTable",
+        "Original Column": "sourceField",
+        "New Table": "targetTable",
+        "New Column": "targetField",
+    })
+    sql_info_records = sql_info_df.to_dict(orient='records')
+
+    # source_tables from mapping_info (most reliable — every workbook has it)
+    seen_source_tables: set[str] = set()
+    source_tables_list: list[dict] = []
+    for row in mapping_info_df.to_dict(orient='records'):
+        src_table = str(row.get("Original Table", "")).strip()
+        src_field = str(row.get("Original Column", "")).strip()
+        tgt_table = str(row.get("New Table", "")).strip()
+        if not src_table or src_table == "nan" or src_table.upper() in seen_source_tables:
+            continue
+        seen_source_tables.add(src_table.upper())
+        source_tables_list.append({
+            "source_table_name": src_table,
+            "source_field": src_field,
+            "target_table": tgt_table,
+        })
+
+    # output_columns from last chunk's SELECT aliases
+    output_columns: list[str] = []
+    last_chunk_sql = ""
+    if sql_info_records:
+        def _chunk_num(row):
+            try:
+                return int(row.get("Chunk Number", 0) or 0)
+            except (ValueError, TypeError):
+                return 0
+        sorted_chunks = sorted(sql_info_records, key=_chunk_num)
+        last_row = sorted_chunks[-1] if sorted_chunks else {}
+        last_chunk_sql = str(last_row.get("Chunk SQL Primary Optimized Base", "")).strip()
+        if last_chunk_sql and last_chunk_sql != "nan":
+            select_match = re.search(
+                r'\bSELECT\b(.*?)\bFROM\b',
+                last_chunk_sql,
+                re.IGNORECASE | re.DOTALL,
+            )
+            select_clause = select_match.group(1) if select_match else last_chunk_sql
+            alias_matches = re.findall(
+                r'\bAS\s+"?([A-Za-z_][A-Za-z0-9_]*)"?\s*(?=[\s,)])',
+                select_clause,
+                re.IGNORECASE,
+            )
+            seen_aliases: set[str] = set()
+            for alias in alias_matches:
+                if alias.lower() not in seen_aliases:
+                    seen_aliases.add(alias.lower())
+                    output_columns.append(alias)
+
+    # last_chunk_sources from FROM/JOIN clauses
+    last_chunk_sources: list[str] = []
+    if last_chunk_sql and last_chunk_sql != "nan":
+        from_matches = re.findall(
+            r'\b(?:FROM|JOIN)\s+([A-Za-z_][A-Za-z0-9_]*)',
+            last_chunk_sql,
+            re.IGNORECASE,
+        )
+        seen_src: set[str] = set()
+        for src in from_matches:
+            if src.lower() not in seen_src:
+                seen_src.add(src.lower())
+                last_chunk_sources.append(src)
+
+    return {
+        "sql_info": sql_info_records,
+        "mapping_info": mapping_info_df.to_dict(orient='records'),
+        "source_tables": source_tables_list,
+        "output_columns": output_columns,
+        "last_chunk_sql": last_chunk_sql,
+        "last_chunk_sources": last_chunk_sources,
+    }
 
 
 def _infer_object_kind(ref: str) -> str:
@@ -1802,13 +1877,29 @@ def nested_download(task_id):
     # Determine extension and mimetype from task.output_format
     content = task.result_content
     if task.output_format == OutputFormat.PYSPARK.value:
-        ext = ".pyspark"
+        default_name = f"nested_cv_{task_id[:8]}.pyspark"
         mimetype = 'text/plain'
-        download_name = f"nested_cv_{task_id[:8]}.pyspark"
     else:
-        ext = ".sql"
+        default_name = f"nested_cv_{task_id[:8]}.sql"
         mimetype = 'text/x-sql'
-        download_name = f"nested_cv_{task_id[:8]}.sql"
+
+    # Honor an explicit ?filename= override from the frontend rename UI.
+    # Sanitize: strip path separators, control chars, and cap length so a
+    # malicious or accidental value can't escape the downloads directory
+    # or produce an absurdly long header.
+    requested_name = (request.args.get("filename") or "").strip()
+    if requested_name:
+        # Werkzeug's secure_filename strips path separators and unsafe chars.
+        safe = secure_filename(requested_name)
+        if safe:
+            # Preserve the expected extension if the user omitted it.
+            if not safe.lower().endswith(("." + (task.output_format or "sql"))):
+                safe += "." + (task.output_format or "sql")
+            download_name = safe[:200]  # cap length
+        else:
+            download_name = default_name
+    else:
+        download_name = default_name
 
     return send_file(
         io.BytesIO(content.encode('utf-8')),
@@ -1816,6 +1907,86 @@ def nested_download(task_id):
         download_name=download_name,
         mimetype=mimetype,
     )
+
+
+# GET /api/nested/previous_conversions/<task_id>/inspect — Run the XLSX
+# inspect pipeline against a previous conversion's stored mapping sheet.
+# This is the server-side counterpart of the upload + inspectOnly flow,
+# so the frontend doesn't have to download + re-upload the file just to
+# populate the column-mapping UI.
+@app.route('/api/nested/previous_conversions/<task_id>/inspect', methods=['GET', 'OPTIONS'])
+def nested_inspect_previous_conversion(task_id):
+    if request.method == 'OPTIONS':
+        return '', 200
+    try:
+        base_dir = os.getenv("PREVIOUS_CONVERSIONS_DIR") or local_storage.OUTPUT_DIR
+        task_dir = os.path.join(base_dir, task_id)
+        if not os.path.isdir(task_dir):
+            return jsonify({"error": f"No previous conversion found for task_id: {task_id}"}), 404
+
+        # Find the mapping .xlsx file in this task directory
+        mapping_path = None
+        for fname in os.listdir(task_dir):
+            if fname.endswith(".xlsx") and not fname.startswith("_"):
+                mapping_path = os.path.join(task_dir, fname)
+                break
+        if not mapping_path:
+            return jsonify({"error": "No mapping sheet file found for this conversion"}), 404
+
+        password = request.args.get("password", "mypassword123la")
+        # Same decrypt helper used by the upload endpoint, but pointed at a
+        # file on disk instead of request.files.
+        with open(mapping_path, "rb") as fh:
+            xls = decrypt_xlsx_file(fh, password)
+
+        inspect = _inspect_xlsx_workbook(xls)
+        # Carry file_name forward so the frontend can label the selection.
+        file_name = os.path.basename(mapping_path).replace(".xlsx", "")
+        return jsonify({
+            "success": True,
+            "file_name": file_name,
+            **inspect,
+        }), 200
+    except Exception as e:
+        logger.error(f"nested_inspect_previous_conversion error: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
+
+
+# DELETE /api/nested/tasks/<task_id> — Cancel a running generation task
+@app.route('/api/nested/tasks/<task_id>', methods=['DELETE', 'OPTIONS'])
+def nested_cancel_task(task_id):
+    """Mark a task as cancelled. The background worker checks this flag at
+    each progress checkpoint and bails out cleanly. Tasks in terminal
+    states (COMPLETED / FAILED / CANCELLED) cannot be cancelled — the
+    endpoint returns 200 with a hint so the client can ignore it."""
+    if request.method == 'OPTIONS':
+        return '', 200
+    store = get_session_store()
+    task = store.get_task(task_id)
+    if not task:
+        return jsonify({"error": "Task not found"}), 404
+    if task.status in ("COMPLETED", "FAILED", "CANCELLED"):
+        return jsonify({
+            "success": True,
+            "cancelled": False,
+            "status": task.status,
+            "message": f"Task already in terminal state: {task.status}",
+        }), 200
+    store.request_cancel(task_id)
+    return jsonify({
+        "success": True,
+        "cancelled": True,
+        "task_id": task_id,
+        "message": "Cancellation requested",
+    }), 200
+
+
+# GET /api/nested/tasks/<task_id>/cancel — alias for DELETE so curl users
+# without -X DELETE can also cancel. Same handler.
+@app.route('/api/nested/tasks/<task_id>/cancel', methods=['POST', 'OPTIONS'])
+def nested_cancel_task_alias(task_id):
+    return nested_cancel_task(task_id)
 
 # Add the rest of your routes here...
 # (Keep all your existing routes)

@@ -42,13 +42,50 @@ Thumbs.db
 *.log
 error.log
 error_utf8.log
+importtime.log
 
 # Environment files
 .env*
 
-# GCP keys
+# GCP service account keys (allow package metadata)
 *.json
+!package.json
+!components.json
+!tsconfig.json
 
 # Jupyter Notebooks
 .ipynb_checkpoints
 *.ipynb
+
+# License artifacts — license.json is machine-bound; never commit
+license.json
+
+# Sample / debug helper files
+Sample_*.xlsx
+Sample_*.xls
+debug_checkpoint.py
+
+# Backend pickle / session caches used by file_processor
+pickle_files/
+session_cache/
+
+# Excel / Office lock files
+~*.xlsx
+~*.xls
+~*.xlsm
+~*.docx
+~*.doc
+
+# Coverage
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# mypy / ruff caches
+.mypy_cache/
+.ruff_cache/
+.pyre/
+
+# NOTE: backend/tests/ is intentionally NOT ignored — these are real unit
+# tests (test_hmac_auth.py, test_licensing.py, test_secrets.py).

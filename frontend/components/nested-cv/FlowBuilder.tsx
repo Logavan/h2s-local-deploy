@@ -39,6 +39,10 @@ export interface FlowBase {
   linkedSources?: LinkedSource[]
   /** Parent node id (MAIN_ID or another base id) used to draw the connecting edge */
   parentId?: string
+  /** Total column-mapping rows for this artifact (from mapping info). */
+  mappingCount?: number
+  /** Depth in the multi-layer tree (0 = root, 1 = first nested, 2 = nested-nested, ...). */
+  depth?: number
 }
 
 export interface FlowBuilderProps {
@@ -63,10 +67,7 @@ const edgeDefaults = {
   markerEnd: { type: MarkerType.ArrowClosed, color: "#f5a623" },
 } as const
 
-let idCounter = 0
-let edgeCounter = 0
 const nextNodeId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-const nextEdgeId = () => `e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
 export default function FlowBuilder({
   mainLabel,
@@ -81,7 +82,7 @@ export default function FlowBuilder({
   height = 480,
 }: FlowBuilderProps) {
   const [nodes, setNodes] = useState<FlowNode[]>(() => buildInitialNodes(mainLabel, mainBackendId, mainLinkedSources, bases))
-  const [edges, setEdges] = useState<Edge[]>(() => buildInitialEdges(bases).filter(e => e.source !== e.target))
+  const [edges, setEdges] = useState<Edge[]>(() => buildInitialEdges(bases, mainBackendId).filter(e => e.source !== e.target))
 
   // Sync local state with props when bases actually change - preserve existing positions
   const basesKey = JSON.stringify(bases)
@@ -97,7 +98,7 @@ export default function FlowBuilder({
         return newNode
       })
     })
-    setEdges(buildInitialEdges(bases).filter(e => e.source !== e.target))
+    setEdges(buildInitialEdges(bases, mainBackendId).filter(e => e.source !== e.target))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mainLabel, mainBackendId, mainLinkedSources, basesKey])
 
@@ -137,16 +138,24 @@ export default function FlowBuilder({
   const handleAddBase = useCallback(() => {
     const newId = nextNodeId("base")
     setNodes(nds => {
+      // Place the new base at the next free slot in depth 1 (the
+      // first-level column to the right of the main node).
       const baseCount = nds.filter(n => n.id !== MAIN_ID).length
+      const pos = calculateBasePosition(
+        { id: newId },
+        [{ id: newId }],
+        new Map<string, number>(),
+        new Map<number, number>([[1, baseCount]]),
+      )
       const updatedNodes: FlowNode[] = [
         ...nds,
         {
           id: newId,
           type: "calculationNode",
-          position: calculateBasePosition(baseCount),
+          position: pos,
           sourcePosition: Position.Right,
           targetPosition: Position.Left,
-          data: { label: "Calculation Base View name", variant: "base" as const, isResolved: false },
+          data: { label: "Calculation Base View name", variant: "base" as const, isResolved: false, depth: 1 },
         },
       ]
       return updatedNodes
@@ -212,19 +221,61 @@ export default function FlowBuilder({
   )
 }
 
-// Grid layout: arrange bases in columns with multiple rows
-const COLS = 3
+// Grid layout constants. NODE_WIDTH/HEIGHT must match the dimensions set
+// inline in CalculationNode.tsx; COL_SPACING / ROW_SPACING add breathing
+// room between nodes so edges don't overlap.
 const NODE_WIDTH = 240
-const NODE_HEIGHT = 160
-const COL_SPACING = 60
-const ROW_SPACING = 80
+const NODE_HEIGHT = 200
+const ROW_SPACING = 60
+// Horizontal step between depth levels — gives the multi-layer tree a
+// clear left-to-right visual flow so users can read the lineage at a glance.
+const DEPTH_X_STEP = NODE_WIDTH + 80
 
-function calculateBasePosition(index: number): { x: number; y: number } {
-  const col = index % COLS
-  const row = Math.floor(index / COLS)
+/**
+ * Compute a depth-aware position for a base node.
+ *
+ * Multi-layer trees become hard to read when all bases are dumped in a
+ * single grid. We group nodes by depth (column) and stack siblings under
+ * their parent so the tree's left-to-right lineage is visually obvious:
+ *
+ *   Root ─▶ L1 children ─▶ L2 children ─▶ L3 children ...
+ *
+ * Siblings are vertically stacked under the parent's row to keep edges
+ * from crossing unnecessarily.
+ */
+function calculateBasePosition(
+  base: { id: string; parentId?: string; label?: string; isResolved?: boolean },
+  bases: ReadonlyArray<{ id: string; parentId?: string }>,
+  parentRowOffsets: Map<string, number>,
+  rowCursorByDepth: Map<number, number>,
+): { x: number; y: number } {
+  const depth = (() => {
+    let d = 1
+    let current = base.parentId
+    const seen = new Set<string>()
+    while (current && !seen.has(current)) {
+      seen.add(current)
+      d += 1
+      const parent = bases.find(b => b.id === current)
+      current = parent?.parentId
+    }
+    return d
+  })()
+
+  // Anchor each child's y to the parent's row so edges go straight down.
+  let y: number
+  if (base.parentId && parentRowOffsets.has(base.parentId)) {
+    y = parentRowOffsets.get(base.parentId) ?? 40
+  } else {
+    const row = rowCursorByDepth.get(depth) ?? 0
+    y = 40 + row * (NODE_HEIGHT + ROW_SPACING)
+    rowCursorByDepth.set(depth, row + 1)
+  }
+  parentRowOffsets.set(base.id, y)
+
   return {
-    x: 520 + col * (NODE_WIDTH + COL_SPACING),
-    y: 40 + row * (NODE_HEIGHT + ROW_SPACING),
+    x: 520 + (depth - 1) * DEPTH_X_STEP,
+    y,
   }
 }
 
@@ -235,10 +286,31 @@ function buildInitialNodes(mainLabel: string, mainBackendId: string | undefined,
     position: { x: 40, y: 200 },
     sourcePosition: Position.Right,
     targetPosition: Position.Right,
-    data: { label: mainLabel || "Calculation Main View name", variant: "main", backendId: mainBackendId, isResolved: true, linkedSources: mainLinkedSources },
+    data: {
+      label: mainLabel || "Calculation Main View name",
+      variant: "main",
+      backendId: mainBackendId,
+      isResolved: true,
+      linkedSources: mainLinkedSources,
+      mappingCount: bases.reduce((sum, b) => sum + (b.linkedSources?.length || 0), 0),
+      depth: 0,
+    },
   }
-  const baseNodes: FlowNode[] = bases.map((base, index) => {
-    const pos = calculateBasePosition(index)
+  // Compute depth from parentId chain so each node knows which layer
+  // it belongs to. Defaults to 1 (direct child of main) if missing.
+  const depthById = new Map<string, number>()
+  for (const base of bases) {
+    const parentDepth = base.parentId ? (depthById.get(base.parentId) ?? 0) : 0
+    const depth = (base.parentId ? parentDepth + 1 : 1)
+    depthById.set(base.id, depth)
+  }
+  // Position bases using the depth-aware layout. Walk bases in declared
+  // order; the layout function maintains a cursor per depth so siblings
+  // stack vertically without re-running an expensive layout pass.
+  const parentRowOffsets = new Map<string, number>()
+  const rowCursorByDepth = new Map<number, number>()
+  const baseNodes: FlowNode[] = bases.map((base) => {
+    const pos = calculateBasePosition(base, bases, parentRowOffsets, rowCursorByDepth)
     return {
       id: base.id,
       type: "calculationNode",
@@ -252,6 +324,8 @@ function buildInitialNodes(mainLabel: string, mainBackendId: string | undefined,
         isResolved: base.isResolved,
         sourceRef: base.sourceRef,
         linkedSources: base.linkedSources,
+        mappingCount: base.mappingCount,
+        depth: base.depth ?? depthById.get(base.id) ?? 1,
       },
     }
   })
@@ -259,8 +333,13 @@ function buildInitialNodes(mainLabel: string, mainBackendId: string | undefined,
 }
 
 // Build edges from parentId -> base.id for every base that has a parentId
-function buildInitialEdges(bases: FlowBuilderProps["bases"]): Edge[] {
-  const knownIds = new Set<string>([MAIN_ID, ...bases.map(b => b.id)])
+function buildInitialEdges(bases: FlowBuilderProps["bases"], mainBackendId?: string): Edge[] {
+  // knownIds must include BOTH the visual MAIN_ID (used by the main node in
+  // buildInitialNodes) AND the main node's backend artifact ID (used as
+  // base.parentId when a nested CV's parent is the root calculation view).
+  // Without mainBackendId in the set, edges from the root to first-level
+  // nested CVs would be silently filtered out, leaving bases disconnected.
+  const knownIds = new Set<string>([MAIN_ID, mainBackendId, ...bases.map(b => b.id)].filter(Boolean) as string[])
   return bases
     .filter(base => base.parentId && knownIds.has(base.parentId) && base.parentId !== base.id)
     .map(base => ({

@@ -109,3 +109,36 @@ skills/
 ~*.pptx
 ~*.ppt
 .*.swp
+
+# Runtime conversion outputs (preserve .gitkeep so the empty dir is committed)
+data/outputs/*
+!data/outputs/.gitkeep
+
+# License artifacts — never commit a customer-bound license.json
+license.json
+backend/license.json
+
+# Backend sample data files (decrypted sample workbooks)
+backend/Sample_*.xlsx
+backend/Sample_*.xls
+
+# Backend debug helpers
+backend/debug_checkpoint.py
+backend/importtime.log
+
+# Frontend typo / experimental directory (FlowBuilder.jsx working copy)
+frontend/FlowBuider/
+
+# Frontend TypeScript build cache (already covered by *.tsbuildinfo above,
+# but pin here for clarity at the expected location)
+frontend/tsconfig.tsbuildinfo
+
+# pnpm artifacts (lockfile is tracked; only the local store is ignored)
+.pnpm-store/
+
+# Coverage / test artifacts
+coverage/
+.nyc_output/
+htmlcov/
+.tox/
+.cache/

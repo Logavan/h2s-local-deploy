@@ -4,8 +4,28 @@ import { useEffect, useMemo, useState } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { sql as langSql } from "@codemirror/lang-sql";
 import { linter, Diagnostic } from "@codemirror/lint";
-import { validateSQL, ValidationError, formatError } from "../utils/sqlValidator";
+import { syntaxHighlighting, defaultHighlightStyle, HighlightStyle } from "@codemirror/language";
+import { tags as t } from "@lezer/highlight";
+import { validateSQL, ValidationError } from "../utils/sqlValidator";
 import { cn } from "../lib/utils"; // Import cn utility
+
+// Explicit SQL keyword highlight style (light theme friendly)
+const sqlHighlightStyle = HighlightStyle.define([
+  { tag: t.keyword, color: "#0000ff", fontWeight: "bold" },
+  { tag: [t.string, t.special(t.string)], color: "#a31515" },
+  { tag: t.number, color: "#098658" },
+  { tag: t.bool, color: "#0000ff" },
+  { tag: t.null, color: "#0000ff", fontWeight: "bold" },
+  { tag: t.comment, color: "#008000", fontStyle: "italic" },
+  { tag: t.lineComment, color: "#008000", fontStyle: "italic" },
+  { tag: t.blockComment, color: "#008000", fontStyle: "italic" },
+  { tag: t.operator, color: "#000000" },
+  { tag: t.punctuation, color: "#000000" },
+  { tag: [t.typeName, t.className], color: "#267f99" },
+  { tag: t.standard(t.name), color: "#0000ff" },
+  { tag: [t.function(t.variableName), t.function(t.propertyName)], color: "#795e26" },
+  { tag: t.variableName, color: "#001080" },
+]);
 
 interface SqlEditorProps {
   value: string;
@@ -51,7 +71,7 @@ export default function SqlEditor({ value, onChange, editorHeight = "340px", isC
               value={sql}
               height="100%" // Use percentage height within the container
               theme="light" // Use 'light' theme for CodeMirror as requested
-              extensions={[langSql(), sqlLinter]}
+              extensions={[langSql(), syntaxHighlighting(sqlHighlightStyle), syntaxHighlighting(defaultHighlightStyle, { fallback: true }), sqlLinter]}
               onChange={(v) => {
                 setSql(v);
                 onChange(v); // Propagate changes up

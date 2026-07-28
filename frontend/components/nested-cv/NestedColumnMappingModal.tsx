@@ -17,12 +17,9 @@ interface NestedColumnMappingModalProps {
   nestedOutputColumns: string[]
   /** Existing mappings for this artifact+source pair (pre-populate) */
   existingMappings?: MappingEntry[]
-  /** Optional list of nested CV output column names (for parent dropdowns that come from this source) */
-  parentOutputColumns?: string[]
   artifactId: string
   isSaving: boolean
   onSave: (rows: MappingEntry[]) => Promise<void> | void
-  onSkip?: () => void
 }
 
 type RowState = {
@@ -78,24 +75,28 @@ function autoBuildRows(
       continue
     }
 
-    // 3) Auto-match by token overlap (e.g. CUSTOMER_ID ↔ CUST_ID) — best-effort
+    // 3) Auto-match by token overlap (e.g. CUSTOMER_ID ↔ CUST_ID) — best-effort.
+    // Score = sum of token LENGTHS of matched tokens, so longer shared
+    // substrings (e.g. "CUSTOMER") outweigh short common words (e.g. "ID").
     const parentTokens = new Set(parentKey.split(/[^A-Z0-9]+/).filter(Boolean))
-    let best: { col: string; score: number } | null = null
+    let bestScore = -1
+    let bestCol: string | null = null
     for (const cand of nestedOutput) {
-      const candTokens = cand.split(/[^A-Z0-9]+/).filter(Boolean)
-      const candKeys = candTokens.map(t => t.toUpperCase())
+      const candKey = normalize(cand)
+      if (!candKey || usedNested.has(candKey)) continue
+      const candTokens = candKey.split(/[^A-Z0-9]+/).filter(Boolean)
       let score = 0
-      for (const token of candKeys) {
-        if (parentTokens.has(token)) score += 1
+      for (const token of candTokens) {
+        if (parentTokens.has(token)) score += token.length
       }
-      // Avoid matching the same nested column twice
-      if (score > 0 && !usedNested.has(cand.toUpperCase()) && (!best || score > best.score)) {
-        best = { col: cand, score }
+      if (score > bestScore) {
+        bestScore = score
+        bestCol = cand
       }
     }
-    if (best) {
-      usedNested.add(best.col.toUpperCase())
-      result.push({ parentCol, nestedCol: best.col, explicit: false })
+    if (bestCol && bestScore > 0) {
+      usedNested.add(normalize(bestCol))
+      result.push({ parentCol, nestedCol: bestCol, explicit: false })
       continue
     }
 
@@ -117,7 +118,6 @@ export default function NestedColumnMappingModal({
   artifactId,
   isSaving,
   onSave,
-  onSkip,
 }: NestedColumnMappingModalProps) {
   const [rows, setRows] = useState<RowState[]>([])
   const [error, setError] = useState("")
@@ -160,12 +160,15 @@ export default function NestedColumnMappingModal({
   async function handleSave() {
     setError("")
     try {
-      const validRows = rows.filter(r => r.nestedCol.trim() !== "")
-      if (validRows.length === 0 && rows.length > 0) {
-        setError("Map at least one column before saving, or click Skip.")
+      // All mappings are mandatory — every parent column must have a nested column selected.
+      const unmappedRows = rows.filter(r => !r.nestedCol || r.nestedCol.trim() === "")
+      if (unmappedRows.length > 0) {
+        setError(
+          `All column mappings are mandatory. Please map ${unmappedRows.length} remaining column${unmappedRows.length === 1 ? "" : "s"} before saving.`,
+        )
         return
       }
-      const newMappings: MappingEntry[] = validRows.map(r => ({
+      const newMappings: MappingEntry[] = rows.map(r => ({
         source_ref_canonical: sourceRef.toUpperCase(),
         source_column_raw: r.parentCol,
         target_table: parentArtifactName,
@@ -183,10 +186,24 @@ export default function NestedColumnMappingModal({
     setRows(rebuilt)
   }
 
+  // Backdrop click: warn if user has unsaved explicit edits before closing.
+  const hasExplicitEdits = rows.some(r => r.explicit)
+  function handleBackdropClick(event: React.MouseEvent<HTMLDivElement>) {
+    if (event.target !== event.currentTarget) return
+    if (hasExplicitEdits) {
+      if (!window.confirm("Close without saving? Your column mapping edits will be lost.")) return
+    }
+    onClose()
+  }
+
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[80] flex items-center justify-center p-4">
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
+    <div
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[80] flex items-center justify-center p-4"
+      onClick={handleBackdropClick}
+    >
       <motion.div
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -327,6 +344,23 @@ export default function NestedColumnMappingModal({
               </table>
             </div>
           )}
+
+          {/* Extras hint: nested columns that no parent column needed.
+              Mirrors the same hint shown in NestedDependencyModal so users
+              editing mappings from the flow chart see consistent feedback. */}
+          {rows.length > 0 && nestedOutputColumns.length > 0 && (() => {
+            const used = new Set(rows.map(r => r.nestedCol).filter(Boolean))
+            const extras = nestedOutputColumns.filter(c => !used.has(c))
+            if (extras.length === 0) return null
+            return (
+              <div className="mt-3 px-3 py-2 border border-gray-100 bg-gray-50 text-[11px] text-gray-500 flex items-center gap-1.5 flex-wrap">
+                <span className="font-medium text-gray-600">Extras from this CV (not mapped):</span>
+                {extras.map(col => (
+                  <span key={col} className="font-mono px-1.5 py-0.5 bg-white border border-gray-200 rounded text-gray-700">{col}</span>
+                ))}
+              </div>
+            )
+          })()}
         </div>
 
         {error && (
@@ -337,21 +371,17 @@ export default function NestedColumnMappingModal({
         )}
 
         <div className="flex items-center justify-between gap-3 p-4 border-t border-gray-200 bg-gray-50">
-          <p className="text-xs text-gray-500">
+          <p className={cn(
+            "text-xs",
+            rows.length > 0 && unmatched > 0 ? "text-amber-700 font-medium" : "text-gray-500"
+          )}>
             {rows.length === 0
               ? "No required columns declared."
-              : `${rows.filter(r => r.nestedCol).length} of ${rows.length} columns mapped.`}
+              : unmatched > 0
+                ? `${unmatched} of ${rows.length} column${unmatched === 1 ? "" : "s"} still need${unmatched === 1 ? "s" : ""} to be mapped. All mappings are mandatory.`
+                : `All ${rows.length} column${rows.length === 1 ? "" : "s"} mapped — ready to save.`}
           </p>
           <div className="flex items-center gap-3">
-            {onSkip && (
-              <button
-                onClick={onSkip}
-                disabled={isSaving}
-                className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50"
-              >
-                Skip for now
-              </button>
-            )}
             <button
               onClick={onClose}
               disabled={isSaving}
@@ -361,7 +391,8 @@ export default function NestedColumnMappingModal({
             </button>
             <button
               onClick={handleSave}
-              disabled={isSaving || !initialized}
+              disabled={isSaving || !initialized || unmatched > 0}
+              title={unmatched > 0 ? "All columns must be mapped before saving" : undefined}
               className="px-4 py-2 text-sm font-medium bg-secondary text-white rounded-lg hover:bg-secondary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}

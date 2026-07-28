@@ -24,7 +24,20 @@ async def _run_generation(task_id: str, session_id: str):
     task.message = "Starting generation..."
     store.update_task(task)
 
+    def _check_cancel() -> bool:
+        """Return True if the user asked to cancel; if so, mark CANCELLED
+        and bail out of the worker."""
+        if store.is_cancel_requested(task_id):
+            task.status = "CANCELLED"
+            task.message = "Cancelled by user"
+            task.progress = 0
+            store.update_task(task)
+            return True
+        return False
+
     try:
+        if _check_cancel():
+            return
         artifacts = list(session.artifacts.values())
         links = session.dependency_links
         mappings = session.global_mappings
@@ -42,6 +55,8 @@ async def _run_generation(task_id: str, session_id: str):
             task.progress = 10
             task.message = "Using Mapping Tool pipeline for single CV..."
             store.update_task(task)
+            if _check_cancel():
+                return
 
             # Convert MappingEntry[] → MappingTool format dicts
             mappings_list = [
@@ -58,6 +73,8 @@ async def _run_generation(task_id: str, session_id: str):
             task.progress = 30
             task.message = "Generating SQL via Mapping Tool engine..."
             store.update_task(task)
+            if _check_cancel():
+                return
 
             # Call the same function as MappingTool
             from mapping_sql_generator import generate_sql_from_mapping
@@ -94,10 +111,14 @@ async def _run_generation(task_id: str, session_id: str):
         task.progress = 20
         task.message = "Building dependency graph..."
         store.update_task(task)
+        if _check_cancel():
+            return
 
         task.progress = 40
         task.message = "Composing SQL..."
         store.update_task(task)
+        if _check_cancel():
+            return
 
         if session.output_format == OutputFormat.PYSPARK.value:
             lines, diags = compose_pyspark(artifacts, links, mappings)

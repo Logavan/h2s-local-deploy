@@ -1,0 +1,5 @@
+# Vendor private key — NEVER commit.
+# The bundled public.pem is fine to ship with the app.
+private.pem
+private.*.pem
+*.key

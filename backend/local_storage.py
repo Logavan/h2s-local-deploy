@@ -61,7 +61,7 @@ def save_result(task_id, zip_content, mapping_content, metadata=None):
         raise
 
     sql_filename = f"{safe_name}.zip"
-    mapping_filename = f"{safe_name}_mapping_sheet.xlsx"
+    mapping_filename = f"{safe_name}.xlsx"
 
     sql_path = os.path.join(task_dir, sql_filename)
     mapping_path = os.path.join(task_dir, mapping_filename)
@@ -105,7 +105,7 @@ def save_result(task_id, zip_content, mapping_content, metadata=None):
         "data_mapping_url": mapping_path,
         "subfolder": subfolder_name,
         "sql_download_name": f"{safe_name}_converted.zip",
-        "mapping_download_name": f"{safe_name}_mapping_sheet.xlsx",
+        "mapping_download_name": f"{safe_name}.xlsx",
     }
 
 
@@ -139,7 +139,7 @@ def get_result_url(task_id, file_type="sql"):
         task_dir = os.path.join(OUTPUT_DIR, subfolder)
         if file_type == "mapping":
             for fname in os.listdir(task_dir):
-                if fname.endswith("_mapping_sheet.xlsx"):
+                if fname.endswith(".xlsx") and not fname.startswith("_"):
                     return os.path.join(task_dir, fname)
         else:
             for fname in os.listdir(task_dir):
@@ -190,7 +190,7 @@ def get_result_info(task_id):
             if fname.endswith(".zip"):
                 sql_url = os.path.join(task_dir, fname)
                 sql_download_name = f"{fname.replace('.zip', '')}_converted.zip"
-            elif fname.endswith("_mapping_sheet.xlsx"):
+            elif fname.endswith(".xlsx") and not fname.startswith("_"):
                 data_mapping_url = os.path.join(task_dir, fname)
                 mapping_download_name = fname
 
@@ -201,7 +201,7 @@ def get_result_info(task_id):
             "sql_url": sql_url,
             "data_mapping_url": data_mapping_url,
             "sql_download_name": sql_download_name or f"{task_id}_converted.zip",
-            "mapping_download_name": mapping_download_name or f"{task_id}_mapping_sheet.xlsx",
+            "mapping_download_name": mapping_download_name or f"{task_id}.xlsx",
         }
 
     return None

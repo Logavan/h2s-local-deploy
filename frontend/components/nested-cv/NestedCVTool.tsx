@@ -6,9 +6,9 @@ import Image from "next/image"
 import Link from "next/link"
 import { motion } from "framer-motion"
 import {
-  AlertCircle, ArrowRight, Check, CheckCircle, ChevronDown, ChevronRight, Download,
-  FileSpreadsheet, GitMerge, Lightbulb, Loader2, Pencil, Plus, RotateCcw,
-  Save, X,
+  AlertCircle, ArrowRight, Check, CheckCircle, ChevronDown, ChevronRight, ChevronsDown, ChevronsUp,
+  Download, FileSpreadsheet, GitMerge, Lightbulb, Loader2, Maximize2, Minimize2, Pencil,
+  Plus, RotateCcw, Save, X,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import MappingEditorPopup from "@/components/MappingEditorPopup"
@@ -16,7 +16,7 @@ import SqlEditor from "@/components/CodeEditor" // Same SqlEditor used by Mappin
 import NotebookRenderer from "@/components/NotebookRenderer"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
-  nestedAddCvFromXlsx, nestedCreateSession, nestedDeleteCv, nestedDeleteSession,
+  nestedAddCvFromXlsx, nestedCancelTask, nestedCreateSession, nestedDeleteCv, nestedDeleteSession,
   nestedDownloadResult, nestedGenerate, nestedGetSession, nestedGetTaskStatus,
   nestedUpdateCv, nestedUpdateMappings, nestedValidate,
 } from "@/lib/api"
@@ -24,7 +24,6 @@ import type {
   CvArtifact, MappingEntry, NestedSession, ObjectKind, OutputFormat, SourceReference,
 } from "@/lib/nested-cv-types"
 import NestedDependencyModal from "./NestedDependencyModal"
-import NestedColumnMappingModal from "./NestedColumnMappingModal"
 import NodeContextMenu, { NodeMenuHint } from "./NodeContextMenu"
 import TableMappingModal, { type TableMappingEntry } from "./TableMappingModal"
 import type { LinkedSource } from "./CalculationNode"
@@ -107,6 +106,97 @@ interface PendingNestedParent {
 
 function sourceNodeId(artifactId: string, sourceRef: string) {
   return `source:${artifactId}:${encodeURIComponent(sourceRef)}`
+}
+
+/**
+ * Build the LinkedSource list for a FlowBuilder node.
+ *
+ * For the main/standalone artifact, mappings live under its own artifact_id,
+ * so we filter `global_mappings` by that id.
+ *
+ * For a nested CV base, mappings are stored under the PARENT's artifact_id
+ * (because the mapping describes how the parent consumes this child source)
+ * and are scoped by `source_ref_canonical`. Pass `parentArtifactId` and
+ * `parentSourceRef` so we can look them up correctly. The nested CV's own
+ * `dependencies` list is still used to enrich the row with `objectKind` and
+ * `sourceRefRaw`.
+ */
+function buildLinkedSourcesFor(
+  session: NestedSession,
+  artifactId: string | undefined,
+  parentArtifactId?: string,
+  parentSourceRef?: string,
+): LinkedSource[] {
+  if (!artifactId) return []
+  const artifact = session.artifacts[artifactId]
+  if (!artifact) return []
+
+  const useParentLookup = Boolean(parentArtifactId && parentSourceRef)
+  const mappingOwnerId = useParentLookup ? (parentArtifactId as string) : artifactId
+  const sourceFilter = parentSourceRef ? parentSourceRef.toUpperCase() : null
+
+  const artifactMappings = sourceFilter
+    ? session.global_mappings.filter(
+        m => m.artifact_id === mappingOwnerId
+          && m.source_ref_canonical.toUpperCase() === sourceFilter,
+      )
+    : session.global_mappings.filter(m => m.artifact_id === mappingOwnerId)
+
+  // Deduplicate by canonical source, keeping the first mapping per source.
+  const seenCanonical = new Map<string, MappingEntry>()
+  for (const mapping of artifactMappings) {
+    const key = mapping.source_ref_canonical.toUpperCase()
+    if (!seenCanonical.has(key)) {
+      seenCanonical.set(key, mapping)
+    }
+  }
+
+  // The dependency metadata for objectKind/raw names comes from the artifact
+  // whose output these sources feed into (the nested CV itself).
+  const depByCanonical = new Map<string, SourceReference>()
+  for (const dep of artifact.dependencies || []) {
+    depByCanonical.set(dep.source_ref_canonical.toUpperCase(), dep)
+  }
+
+  // Determine which sources are already linked (resolved) via dependency_links.
+  const linkedByCanonical = new Map<string, { producer_artifact_id: string; producer: CvArtifact | undefined }>()
+  for (const link of session.dependency_links) {
+    const linkConsumer = useParentLookup ? parentArtifactId : artifactId
+    if (!linkConsumer) continue
+    if (link.consumer_artifact_id !== linkConsumer) continue
+    if (link.resolution !== "uploaded_cv" || !link.producer_artifact_id) continue
+    const key = link.source_ref_canonical.toUpperCase()
+    linkedByCanonical.set(key, {
+      producer_artifact_id: link.producer_artifact_id,
+      producer: session.artifacts[link.producer_artifact_id],
+    })
+  }
+
+  const result: LinkedSource[] = []
+  for (const [key, mapping] of Array.from(seenCanonical.entries())) {
+    const dep = depByCanonical.get(key)
+    const linked = linkedByCanonical.get(key)
+    if (!dep && typeof console !== "undefined") {
+      // Mapping exists for a source_ref_canonical that isn't in this
+      // artifact's declared dependencies — surface this for diagnostics
+      // instead of silently rendering it as a calculation_view.
+      console.warn(
+        `buildLinkedSourcesFor: source ${mapping.source_ref_canonical} has mappings ` +
+        `but no matching dependency on artifact ${artifactId}`,
+      )
+    }
+    result.push({
+      sourceRef: mapping.source_ref_canonical,
+      sourceRefRaw: dep?.source_ref_raw || mapping.source_ref_canonical,
+      objectKind: dep?.object_kind || "calculation_view",
+      isLinked: Boolean(linked?.producer_artifact_id),
+      linkedArtifactId: linked?.producer_artifact_id ?? undefined,
+      linkedArtifactName: linked?.producer?.cv_display_name,
+    })
+  }
+
+  result.sort((a, b) => a.sourceRef.localeCompare(b.sourceRef))
+  return result
 }
 
 function parseRequiredColumns(source: SourceReference): string[] {
@@ -224,16 +314,6 @@ export default function NestedCVTool() {
   const [editDescription, setEditDescription] = useState("")
   const [showNestedModal, setShowNestedModal] = useState(false)
   const [pendingNestedParent, setPendingNestedParent] = useState<PendingNestedParent | null>(null)
-  // Column mapping modal — shown automatically after linking a nested CV
-  const [columnMappingContext, setColumnMappingContext] = useState<{
-    artifactId: string
-    consumerArtifactId: string
-    sourceRef: string
-    parentName: string
-    parentRequiredColumns: string[]
-    nestedOutputColumns: string[]
-  } | null>(null)
-  const [columnMappingSaving, setColumnMappingSaving] = useState(false)
   const [showMappingEditor, setShowMappingEditor] = useState(false)
   const [mappingNodeId, setMappingNodeId] = useState<string | null>(null)
   const [mappingRows, setMappingRows] = useState<MappingRow[]>([])
@@ -250,23 +330,141 @@ export default function NestedCVTool() {
   const [resultFileName, setResultFileName] = useState<string | null>(null)
   const [genErrors, setGenErrors] = useState<string[]>([])
   const [error, setError] = useState("")
+  // Per-generation cancellation. The ref holds the id of the current poll
+  // loop. When we want to cancel, we bump the ref; the in-flight loop checks
+  // it on each iteration and bails out cleanly. Distinct from "invalidate
+  // result" which also bumps the ref — but here we keep the semantics that
+  // ANY bump cancels any active generation.
   const pollGenerationRef = useRef(0)
   const [isEditorCollapsed, setIsEditorCollapsed] = useState(false)
   const [isFullScreen, setIsFullScreen] = useState(false)
-  const [editableFileName, setEditableFileName] = useState("")
-  const [isFileNameEditable, setIsFileNameEditable] = useState(false)
+  // Single source of truth for the rename UI:
+  //   - renameDraft: the in-flight text while the user is editing
+  //   - renameEditing: whether the input is currently editable
+  // When not editing, the display reads from `resultFileName`.
+  const [renameDraft, setRenameDraft] = useState("")
+  const [renameEditing, setRenameEditing] = useState(false)
 
   const tree = useMemo(() => session ? buildTree(session) : [], [session])
   const selectedNode = useMemo(() => findNode(tree, selectedNodeId), [tree, selectedNodeId])
 
+  // Stable callbacks for TreeRow so memoization on its props is meaningful.
+  // Each handler is recreated only when its underlying state actually changes.
+  const toggleExpand = useCallback((id: string) => {
+    setExpandedIds(previous => {
+      const next = new Set(previous)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }, [])
+
+  const openNested = useCallback((node: TreeNode) => {
+    if (node.nodeType !== "source" || !node.sourceRefCanonical || node.resolved) return
+    setPendingNestedParent({
+      nodeId: node.id,
+      consumerArtifactId: node.ownerArtifactId,
+      sourceRef: node.sourceRefCanonical,
+      nodeName: node.name,
+    })
+    setShowNestedModal(true)
+  }, [])
+
+  const openMappingEditor = useCallback((node: TreeNode) => {
+    let rows = node.mappings.map(mapping => ({
+      sourceTable: mapping.source_ref_canonical,
+      sourceField: mapping.source_column_raw,
+      targetTable: mapping.target_table,
+      targetField: mapping.target_column,
+    }))
+    // Fallback: if join/global mappings are empty, fall back to the
+    // artifact's own `mapping_rows` from its uploaded Excel. Without
+    // this, nested CVs whose parent didn't declare required columns show
+    // "no mappings" even though the artifact itself has mapping info.
+    if (!rows.length && node.artifactId && session) {
+      const artifact = session.artifacts[node.artifactId]
+      const ownRows = (artifact?.mapping_rows || []).map(m => ({
+        sourceTable: m.source_ref_canonical,
+        sourceField: m.source_column_raw,
+        targetTable: m.target_table,
+        targetField: m.target_column,
+      }))
+      if (ownRows.length) rows = ownRows
+    }
+    if (!rows.length) {
+      setError(`No column mappings are available for ${node.name}. Use Adjust Mappings after mappings are saved.`)
+      return
+    }
+    // Clear any prior "no mappings" error from earlier attempts.
+    setError("")
+    setMappingNodeId(node.id)
+    setMappingRows(rows)
+    setMappingSql(node.sqlContent)
+    // Compose a context-rich fileName so the editor popup shows the
+    // source CV, target CV, and (if applicable) the nested-link source
+    // this mapping belongs to. e.g.
+    //   "SalesCV → NestedCV1 (linked via ORDERS) — columns"
+    const parentSource = node.nodeType === "source" ? node.sourceRefCanonical : null
+    const headerParts = [node.name]
+    if (parentSource) headerParts.push(`linked via ${parentSource}`)
+    setMappingFileName(`${headerParts.join(" (")}${parentSource ? ")" : ""} — column mappings`)
+    setShowMappingEditor(true)
+  }, [])
+
+  // Memoize the main view's linked sources so the FlowBuilder's useEffect
+  // (which depends on mainLinkedSources) doesn't re-fire on unrelated parent
+  // renders. Recomputed only when the root artifact or the session's mapping/
+  // link state changes.
+  const mainLinkedSources = useMemo(() => {
+    if (!session || tree.length === 0) return []
+    const root = tree[0]
+    if (!root?.artifactId) return []
+    return buildLinkedSourcesFor(session, root.artifactId)
+    // tree is itself memoized from session, so [session, tree] is enough.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, tree])
+
+  // Reset local edit state ONLY when the selected node changes. We deliberately
+  // exclude `localColumns`/`descriptions` from the trigger so that updating them
+  // (e.g., after saving) doesn't clobber edits the user is still making on the
+  // same node. The previously-cached edit values are already in sync with what
+  // was persisted, so resetting on save is a no-op visually.
+  const lastSelectedIdRef = useRef<string | null>(null)
   useEffect(() => {
+    const currentId = selectedNode?.id ?? null
+    if (currentId === lastSelectedIdRef.current) return
+    lastSelectedIdRef.current = currentId
     if (!selectedNode) return
     setEditName(selectedNode.name)
     setEditColumns(localColumns[selectedNode.id] || selectedNode.columns)
     setEditDescription(descriptions[selectedNode.id] || "")
-  }, [selectedNode, localColumns, descriptions])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedNode])
 
   useEffect(() => () => { pollGenerationRef.current += 1 }, [])
+
+  // Scroll to the tools section when a new session is created so the user
+  // sees the new workspace instead of being stranded mid-page on the
+  // "Start Nested CV Session" button. We track the previous session value
+  // with a ref so we only scroll on the null → session transition (i.e. when
+  // a session is freshly created), not on every re-render.
+  const previousSessionRef = useRef<NestedSession | null>(null)
+  useEffect(() => {
+    const previous = previousSessionRef.current
+    previousSessionRef.current = session
+    if (!previous && session) {
+      // Defer to next frame so the DOM has the new content before we measure.
+      requestAnimationFrame(() => {
+        const toolsSection = document.getElementById("tools-section")
+        if (toolsSection) {
+          const headerHeight = 80
+          const targetY = toolsSection.offsetTop - headerHeight
+          window.scrollTo({ top: targetY, behavior: "instant" })
+        } else {
+          window.scrollTo({ top: 0, behavior: "instant" })
+        }
+      })
+    }
+  }, [session])
 
   const refreshSession = useCallback(async (sessionId: string) => {
     const response = await nestedGetSession(sessionId)
@@ -282,14 +480,6 @@ export default function NestedCVTool() {
     setTaskId(null)
     setTaskProgress(0)
     setTaskMessage("")
-  }
-
-  function toggleExpand(id: string) {
-    setExpandedIds(previous => {
-      const next = new Set(previous)
-      next.has(id) ? next.delete(id) : next.add(id)
-      return next
-    })
   }
 
   function setCandidate(id: string, enabled: boolean) {
@@ -317,17 +507,6 @@ export default function NestedCVTool() {
 
   function openRootUpload() {
     setPendingNestedParent({ nodeId: "root", sourceRef: "root", nodeName: "Root Calculation View" })
-    setShowNestedModal(true)
-  }
-
-  function openNested(node: TreeNode) {
-    if (node.nodeType !== "source" || !node.sourceRefCanonical || node.resolved) return
-    setPendingNestedParent({
-      nodeId: node.id,
-      consumerArtifactId: node.ownerArtifactId,
-      sourceRef: node.sourceRefCanonical,
-      nodeName: node.name,
-    })
     setShowNestedModal(true)
   }
 
@@ -376,7 +555,9 @@ export default function NestedCVTool() {
         const validMappings = columnMappings.filter(m => m.nestedCol && m.nestedCol.trim() !== "")
         if (validMappings.length > 0) {
           const sourceUpper = parentSourceRef.toUpperCase()
-          const currentSession = session
+          // Prefer the freshest session from the upload response so we don't
+          // operate on a stale `session` snapshot captured before setSession ran.
+          const currentSession = updatedSession ?? session
           const parentArtifact = currentSession.artifacts[parentConsumerArtifactId]
           const unrelated = currentSession.global_mappings.filter(m => {
             if (m.artifact_id !== parentConsumerArtifactId) return true
@@ -397,97 +578,16 @@ export default function NestedCVTool() {
         }
       }
 
-      // After linking a nested CV, automatically open column mapping modal
-      // so user can confirm/edit mappings between parent's required columns and
-      // the nested CV's output schema. (Only if user hasn't already configured them.)
-      if (parentConsumerArtifactId) {
-        const freshSession = await nestedGetSession(session.session_id)
-        const latestSession = freshSession.session || updatedSession
-        if (latestSession) {
-          const newArtifactId = response.artifact.artifact_id
-          const newArtifact = latestSession.artifacts[newArtifactId]
-          const parentArtifact = latestSession.artifacts[parentConsumerArtifactId]
-          if (parentArtifact && newArtifact) {
-            const sourceUpper = parentSourceRef.toUpperCase()
-            // Required columns on parent side for this source
-            const parentDep = parentArtifact.dependencies.find(d => d.source_ref_canonical.toUpperCase() === sourceUpper)
-            const requiredColumns: string[] = []
-            if (parentDep) {
-              // required_columns_json may arrive as either string[] (newer) or a JSON string (legacy)
-              const raw = parentDep.required_columns_json
-              if (Array.isArray(raw)) {
-                requiredColumns.push(...raw.map(String))
-              } else if (typeof raw === "string") {
-                try {
-                  const arr = JSON.parse(raw || "[]")
-                  if (Array.isArray(arr)) requiredColumns.push(...arr.map(String))
-                } catch { /* ignore */ }
-              }
-            }
-            // Output columns on the new nested CV side
-            const outputColumns = (newArtifact.output_schema || []).map(c => c.column_name)
-            // Only show modal if there's something to map (avoid empty noise)
-            if (requiredColumns.length > 0 && outputColumns.length > 0) {
-              setColumnMappingContext({
-                artifactId: newArtifactId,
-                consumerArtifactId: parentConsumerArtifactId,
-                sourceRef: parentSourceRef,
-                parentName: parentArtifact.cv_display_name,
-                parentRequiredColumns: requiredColumns,
-                nestedOutputColumns: outputColumns,
-              })
-            }
-          }
-        }
-      }
+      // Column mappings are already configured and saved inside NestedDependencyModal
+      // (the user mapped parent required columns → nested CV output columns before
+      // confirming the upload). No need to open another mapping modal here — that was
+      // previously causing the same mapping screen to appear twice.
+      // The user can still re-edit mappings later via FlowBuilder → Adjust Mappings.
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Failed to add nested CV")
     } finally {
       setLoading(false)
     }
-  }
-
-  async function saveColumnMappings(rows: MappingEntry[]) {
-    if (!session || !columnMappingContext) return
-    setColumnMappingSaving(true)
-    setError("")
-    try {
-      // Merge: keep all existing global mappings except those that match this
-      // (artifact, source_ref_canonical) pair, then append the new ones.
-      const sourceUpper = columnMappingContext.sourceRef.toUpperCase()
-      const unrelated = session.global_mappings.filter(m => {
-        if (m.artifact_id !== columnMappingContext.consumerArtifactId) return true
-        if ((m.source_ref_canonical || "").toUpperCase() !== sourceUpper) return true
-        return false
-      })
-      const response = await nestedUpdateMappings(session.session_id, [...unrelated, ...rows])
-      if (!response.success) throw new Error(response.error || "Failed to save column mappings")
-      invalidateResult()
-      await refreshSession(session.session_id)
-      setColumnMappingContext(null)
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Failed to save column mappings")
-    } finally {
-      setColumnMappingSaving(false)
-    }
-  }
-
-  function openMappingEditor(node: TreeNode) {
-    const rows = node.mappings.map(mapping => ({
-      sourceTable: mapping.source_ref_canonical,
-      sourceField: mapping.source_column_raw,
-      targetTable: mapping.target_table,
-      targetField: mapping.target_column,
-    }))
-    if (!rows.length) {
-      setError(`No column mappings are available for ${node.name}. Use Adjust Mappings after mappings are saved.`)
-      return
-    }
-    setMappingNodeId(node.id)
-    setMappingRows(rows)
-    setMappingSql(node.sqlContent)
-    setMappingFileName(`${node.name} — columns`)
-    setShowMappingEditor(true)
   }
 
   // Build a deduplicated list of unique source tables from node mappings
@@ -515,8 +615,40 @@ export default function NestedCVTool() {
 
   async function saveTableMappings(entries: TableMappingEntry[]) {
     if (!session || !mappingNodeId) return
-    const node = findNode(tree, mappingNodeId)
-    if (!node) return
+    // mappingNodeId can be either a tree node id (for nested TREE source nodes)
+    // or a producer artifact id (for nested CV base nodes in the FlowBuilder).
+    let treeNode = findNode(tree, mappingNodeId)
+    let ownerArtifactId: string | undefined
+    let scopedSource: string | null = null
+    if (treeNode) {
+      ownerArtifactId = treeNode.ownerArtifactId
+      scopedSource = treeNode.nodeType === "source" ? treeNode.sourceRefCanonical?.toUpperCase() ?? null : null
+    } else if (session.artifacts[mappingNodeId]) {
+      // mappingNodeId is the producer artifact ID; mappings live under the parent.
+      const producer = session.artifacts[mappingNodeId]
+      const link = session.dependency_links.find(l => l.producer_artifact_id === mappingNodeId)
+      ownerArtifactId = link?.consumer_artifact_id
+      scopedSource = (link?.source_ref_canonical || "").toUpperCase() || null
+      // Use the producer's own output_schema as the columns list for the editor context
+      if (producer) {
+        treeNode = {
+          id: mappingNodeId,
+          name: producer.cv_display_name,
+          kind: "calculation_view",
+          nodeType: "artifact",
+          artifactId: mappingNodeId,
+          ownerArtifactId: ownerArtifactId || mappingNodeId,
+          sqlContent: combinedSql(producer),
+          columns: (producer.output_schema || []).map(c => c.column_name),
+          mappings: [],
+          children: [],
+          parentId: null,
+          resolved: true,
+        }
+      }
+    }
+    if (!ownerArtifactId || !treeNode) return
+    const node = treeNode
     setLoading(true)
     setError("")
     try {
@@ -526,10 +658,15 @@ export default function NestedCVTool() {
         tableTargetMap.set(entry.sourceTable, entry.targetTable)
       }
 
-      const scopedSource = node.nodeType === "source" ? node.sourceRefCanonical?.toUpperCase() : null
+      // Keep mappings that this save does NOT replace:
+      //   - mappings on other artifacts: untouched
+      //   - mappings on this artifact but for a different source_ref: untouched
+      //   - mappings on this artifact AND on the scoped source: REPLACED by the new ones
+      // When scopedSource is null (artifact-level edit), nothing is in-scope, so keep
+      // everything for this artifact and let the new rows be appended.
       const unrelated = session.global_mappings.filter(mapping => {
-        if (mapping.artifact_id !== node.ownerArtifactId) return true
-        if (!scopedSource) return false
+        if (mapping.artifact_id !== ownerArtifactId) return true
+        if (!scopedSource) return true
         return mapping.source_ref_canonical.toUpperCase() !== scopedSource
       })
 
@@ -579,15 +716,26 @@ export default function NestedCVTool() {
 
   async function saveMappings(rows: MappingRow[]) {
     if (!session || !mappingNodeId) return
-    const node = findNode(tree, mappingNodeId)
-    if (!node) return
+    // mappingNodeId can be either a tree node id (for nested TREE source nodes)
+    // or a producer artifact id (for nested CV base nodes from the FlowBuilder).
+    let treeNode = findNode(tree, mappingNodeId)
+    let ownerArtifactId: string | undefined
+    let scopedSource: string | null = null
+    if (treeNode) {
+      ownerArtifactId = treeNode.ownerArtifactId
+      scopedSource = treeNode.nodeType === "source" ? treeNode.sourceRefCanonical?.toUpperCase() ?? null : null
+    } else if (session.artifacts[mappingNodeId]) {
+      const link = session.dependency_links.find(l => l.producer_artifact_id === mappingNodeId)
+      ownerArtifactId = link?.consumer_artifact_id
+      scopedSource = (link?.source_ref_canonical || "").toUpperCase() || null
+    }
+    if (!ownerArtifactId) return
     setLoading(true)
     setError("")
     try {
-      const scopedSource = node.nodeType === "source" ? node.sourceRefCanonical?.toUpperCase() : null
       const unrelated = session.global_mappings.filter(mapping => {
-        if (mapping.artifact_id !== node.ownerArtifactId) return true
-        if (!scopedSource) return false
+        if (mapping.artifact_id !== ownerArtifactId) return true
+        if (!scopedSource) return true
         return mapping.source_ref_canonical.toUpperCase() !== scopedSource
       })
       const updated: MappingEntry[] = rows.map(row => ({
@@ -595,7 +743,7 @@ export default function NestedCVTool() {
         source_column_raw: row.sourceField,
         target_table: row.targetTable,
         target_column: row.targetField,
-        artifact_id: node.ownerArtifactId,
+        artifact_id: ownerArtifactId,
       }))
       const response = await nestedUpdateMappings(session.session_id, [...unrelated, ...updated])
       if (!response.success) throw new Error(response.error || "Failed to save mappings")
@@ -624,7 +772,15 @@ export default function NestedCVTool() {
       if (!response.success) throw new Error(response.error || "Failed to remove CV")
       invalidateResult()
       await refreshSession(session.session_id)
-      if (selectedNodeId === node.id || selectedNodeId === artifactId) setSelectedNodeId(null)
+      // Clear detail panel if the removed node (or its artifact) was selected.
+      // Tree source-node ids look like `source:<artifactId>:<sourceRef>`, so we
+      // also strip-check on artifactId for any selected child.
+      if (selectedNodeId) {
+        const isRemoved = selectedNodeId === node.id
+          || selectedNodeId === artifactId
+          || selectedNodeId.startsWith(`source:${artifactId}:`)
+        if (isRemoved) setSelectedNodeId(null)
+      }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Failed to remove CV")
     } finally {
@@ -657,20 +813,34 @@ export default function NestedCVTool() {
     setGenerating(true)
     setError("")
     setGenErrors([])
+    // Bump the cancellation token BEFORE any await so any prior in-flight
+    // poll loop (started by an earlier generation) will exit on its next
+    // iteration. We capture this id locally and check it on every poll.
+    const generation = ++pollGenerationRef.current
     try {
+      // Pull the freshest session from the server before validating. If the
+      // user has unsaved mapping edits at this point, they will see a
+      // validation error rather than silently generating against stale state.
+      await refreshSession(session.session_id)
+      if (pollGenerationRef.current !== generation) return
       const validation = await nestedValidate(session.session_id)
+      // Re-check cancellation after each await — the user may have hit reset
+      // or started another generate while validation was in flight.
+      if (pollGenerationRef.current !== generation) return
       if (!validation.success || !validation.valid) {
         const messages = validation.errors.map(item => item.message)
         setGenErrors(messages)
         throw new Error(messages[0] || "Resolve validation errors before generating")
       }
       const response = await nestedGenerate(session.session_id)
+      if (pollGenerationRef.current !== generation) return
       if (!response.success || !response.task_id) throw new Error(response.error || "No task ID returned")
       setTaskId(response.task_id)
-      const generation = ++pollGenerationRef.current
       for (let attempt = 0; attempt < 60 && pollGenerationRef.current === generation; attempt += 1) {
         await new Promise(resolve => setTimeout(resolve, 2000))
+        if (pollGenerationRef.current !== generation) return
         const status = await nestedGetTaskStatus(response.task_id)
+        if (pollGenerationRef.current !== generation) return
         setTaskProgress(status.progress)
         setTaskMessage(status.message)
         if (status.status === "COMPLETED") {
@@ -683,9 +853,14 @@ export default function NestedCVTool() {
       }
       throw new Error("Generation timed out")
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Generation failed")
+      // Don't surface a cancellation triggered by reset/invalidate as an error.
+      if (pollGenerationRef.current === generation) {
+        setError(caught instanceof Error ? caught.message : "Generation failed")
+      }
     } finally {
-      setGenerating(false)
+      if (pollGenerationRef.current === generation) {
+        setGenerating(false)
+      }
     }
   }
 
@@ -700,65 +875,35 @@ export default function NestedCVTool() {
     setSelectedNodeId(null)
     setExpandedIds(new Set())
     setCandidateIds(new Set())
+    // Wipe any leftover per-node state from the prior session so a fresh
+    // session never inherits stale column lists, descriptions, rename edits,
+    // mapping editor content, or pending modal payloads.
+    setLocalColumns({})
+    setDescriptions({})
+    setEditName("")
+    setEditColumns([])
+    setEditDescription("")
+    setPendingNestedParent(null)
+    setShowNestedModal(false)
+    setMappingNodeId(null)
+    setMappingRows([])
+    setMappingSql("")
+    setMappingFileName("")
+    setShowMappingEditor(false)
+    setTableMappingEntries([])
+    setShowTableMappingModal(false)
     setResultContent(null)
+    setResultFileName(null)
     setTaskId(null)
+    setTaskProgress(0)
+    setTaskMessage("")
+    setGenErrors([])
+    setRenameDraft("")
+    setRenameEditing(false)
+    setIsEditorCollapsed(false)
+    setIsFullScreen(false)
+    lastSelectedIdRef.current = null
   }
-
-  function TreeRow({ node, depth = 0 }: { node: TreeNode; depth?: number }) {
-    const isExpanded = expandedIds.has(node.id)
-    const isSelected = selectedNodeId === node.id
-    const isCandidate = candidateIds.has(node.id)
-    const hasChildren = node.children.length > 0
-    const badge = badgeFor(node, isCandidate)
-    const canResolve = node.nodeType === "source" && !node.resolved
-
-    const row = (
-      <div
-        tabIndex={0}
-        className={cn(
-          "flex items-center gap-1 rounded-md px-2 py-1.5 text-sm cursor-pointer group transition-colors focus:outline-none focus:ring-1 focus:ring-secondary",
-          isSelected ? "bg-secondary/20 text-primary font-medium" : "text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
-        )}
-        style={{ paddingLeft: `${12 + depth * 20}px` }}
-        onClick={() => setSelectedNodeId(node.id)}
-      >
-        <button onClick={event => { event.stopPropagation(); toggleExpand(node.id) }} className="p-0.5 rounded hover:bg-gray-200" aria-label={isExpanded ? "Collapse" : "Expand"}>
-          {hasChildren ? isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" /> : <span className="block h-3.5 w-3.5" />}
-        </button>
-        <span className={cn("rounded px-1.5 py-0.5 text-xs font-medium", badge.className)}>{badge.label}</span>
-        <span className="flex-1 truncate font-mono text-xs">{node.name}</span>
-        {canResolve && (
-          <button
-            onClick={event => { event.stopPropagation(); openNested(node) }}
-            className={cn("rounded p-1 hover:bg-secondary/10", isCandidate ? "opacity-100 bg-emerald-50" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100")}
-            title="Resolve as nested CV"
-          >
-            <Plus className="h-3.5 w-3.5 text-secondary" />
-          </button>
-        )}
-        <span className="opacity-0 group-hover:opacity-60 group-focus-within:opacity-60" title="Right-click for actions"><NodeMenuHint /></span>
-      </div>
-    )
-
-    return (
-      <div>
-        <NodeContextMenu
-          canAdjustMappings={node.mappings.length > 0}
-          canResolveNested={canResolve}
-          canRemove={node.nodeType === "artifact" || node.resolved || isCandidate}
-          onAdjustMappings={() => openMappingEditor(node)}
-          onResolveNested={() => openNested(node)}
-          onRemove={() => removeNode(node)}
-        >
-          {row}
-        </NodeContextMenu>
-        {isExpanded && hasChildren && node.children.map(child => <TreeRow key={child.id} node={child} depth={depth + 1} />)}
-      </div>
-    )
-  }
-
-  const selectedCandidate = selectedNode ? candidateIds.has(selectedNode.id) : false
-  const selectedBadge = selectedNode ? badgeFor(selectedNode, selectedCandidate) : null
 
   return (
     <div className="max-w-6xl mx-auto bg-white dark:bg-gray-800 shadow-lg rounded-lg p-4 sm:p-8">
@@ -872,8 +1017,21 @@ export default function NestedCVTool() {
             </motion.section>
           )}
 
+          {/* Screen-reader live regions: announce platform/format selection,
+              validation errors, and generation progress so AT users get the
+              same feedback as sighted users. */}
           <div className="sr-only" aria-live="polite">
             {targetDialect ? `Selected platform ${DATABASE_PLATFORMS.find(platform => platform.id === targetDialect)?.name}; selected format ${outputFormat}.` : "No target platform selected."}
+          </div>
+          <div className="sr-only" aria-live="assertive">
+            {generating
+              ? `Generation in progress: ${taskMessage || "starting"}. ${taskProgress}% complete.`
+              : resultContent
+                ? "Generation complete. Output is ready to review."
+                : ""}
+          </div>
+          <div className="sr-only" aria-live="assertive">
+            {error ? `Error: ${error}` : ""}
           </div>
 
           {targetDialect && (
@@ -911,66 +1069,8 @@ export default function NestedCVTool() {
             // Use first root as main, collect all bases from all trees
             const root = tree[0]
 
-            // Build linkedSources list from artifact's global_mappings (HANA tables/views actually used in the SQL).
-            // global_mappings is the authoritative source — artifact.dependencies may include unused entries.
-            const buildLinkedSourcesFor = (artifactId: string | undefined): LinkedSource[] => {
-              if (!artifactId || !session) return []
-              const artifact = session.artifacts[artifactId]
-              if (!artifact) return []
-
-              // Get all mappings for this artifact
-              const artifactMappings = session.global_mappings.filter(
-                m => m.artifact_id === artifactId
-              )
-
-              // Get unique source_ref_canonical values (case-insensitive)
-              const seenCanonical = new Map<string, MappingEntry>()
-              for (const mapping of artifactMappings) {
-                const key = mapping.source_ref_canonical.toUpperCase()
-                if (!seenCanonical.has(key)) {
-                  seenCanonical.set(key, mapping)
-                }
-              }
-
-              // Build a quick lookup of dependencies metadata for objectKind/raw names
-              const depByCanonical = new Map<string, SourceReference>()
-              for (const dep of artifact.dependencies || []) {
-                depByCanonical.set(dep.source_ref_canonical.toUpperCase(), dep)
-              }
-
-              // Get all dependency_links for this artifact to determine which sources are already linked
-              const linkedByCanonical = new Map<string, { producer_artifact_id: string; producer: CvArtifact | undefined }>()
-              for (const link of session.dependency_links) {
-                if (link.consumer_artifact_id !== artifactId) continue
-                if (link.resolution !== "uploaded_cv" || !link.producer_artifact_id) continue
-                const key = link.source_ref_canonical.toUpperCase()
-                linkedByCanonical.set(key, {
-                  producer_artifact_id: link.producer_artifact_id,
-                  producer: session.artifacts[link.producer_artifact_id],
-                })
-              }
-
-              // Build the LinkedSource list (one per unique canonical source used in mappings)
-              const result: LinkedSource[] = []
-              for (const [key, mapping] of Array.from(seenCanonical.entries())) {
-                const dep = depByCanonical.get(key)
-                const linked = linkedByCanonical.get(key)
-                result.push({
-                  sourceRef: mapping.source_ref_canonical,
-                  sourceRefRaw: dep?.source_ref_raw || mapping.source_ref_canonical,
-                  objectKind: dep?.object_kind || "calculation_view",
-                  isLinked: Boolean(linked?.producer_artifact_id),
-                  linkedArtifactId: linked?.producer_artifact_id ?? undefined,
-                  linkedArtifactName: linked?.producer?.cv_display_name,
-                })
-              }
-
-              // Sort alphabetically for stable display
-              result.sort((a, b) => a.sourceRef.localeCompare(b.sourceRef))
-              return result
-            }
-
-            const mainLinkedSources = buildLinkedSourcesFor(root.artifactId)
+            // mainLinkedSources is memoized at the top of NestedCVTool — reuse it
+            // here rather than recomputing on every render.
 
             // Flatten ALL linked producer artifacts (recursively) into base nodes.
             // Each linked artifact becomes its own base node in the flow chart with a
@@ -982,6 +1082,8 @@ export default function NestedCVTool() {
               sourceRef?: string
               linkedSources: LinkedSource[]
               parentId: string
+              mappingCount?: number
+              depth?: number
             }
             const flatBases: FlatBase[] = []
             const seenArtifacts = new Set<string>()
@@ -1000,13 +1102,25 @@ export default function NestedCVTool() {
                 seenArtifacts.add(producerId)
                 const producer = session.artifacts[producerId]
                 if (!producer) continue
+                // Count column-mapping rows belonging to this producer's
+                // own mapping info (i.e., the rows that this nested CV's
+                // mapping info sheet would contribute when displayed).
+                const producerMappingCount = (producer.mapping_rows || []).length
                 flatBases.push({
                   id: producerId,
                   label: producer.cv_display_name || link.source_ref_canonical,
                   isResolved: true,
                   sourceRef: link.source_ref_canonical,
-                  linkedSources: buildLinkedSourcesFor(producerId),
+                  // Nested CV base: mappings are stored under the parent's artifact_id,
+                  // scoped by source_ref_canonical. Pass both so the helper can find them.
+                  linkedSources: buildLinkedSourcesFor(
+                    session,
+                    producerId,
+                    link.consumer_artifact_id,
+                    link.source_ref_canonical,
+                  ),
                   parentId: parentNodeId,
+                  mappingCount: producerMappingCount,
                 })
                 // Recurse so deeper nested CVs become their own nodes connected to this one
                 walkArtifact(producerId, producerId)
@@ -1018,17 +1132,33 @@ export default function NestedCVTool() {
 
             const allBases = flatBases
             const handleMapping = (nodeId: string, kind: "Column Mapping" | "Table Mapping") => {
-              // Find the artifact this node represents (either root artifact or a linked producer)
-              const artifactId = nodeId === root.id || nodeId === "main-view"
-                ? root.artifactId
-                : (allBases.find(b => b.id === nodeId)?.id ?? nodeId)
-              // Find or construct a TreeNode for this artifact
+              // Find the artifact this node represents. Two cases:
+              //   1. Main view / root: nodeId == root.id or "main-view", use root.artifactId
+              //   2. Nested CV base:   nodeId is the producer artifact ID. The mappings
+              //      for this nested CV were stored under the PARENT's artifact_id
+              //      (because mappings describe how the parent consumes this child source).
+              //      We need to find the parent and load mappings from there.
+              const isMain = nodeId === root.id || nodeId === "main-view"
+              const baseMatch = isMain ? null : allBases.find(b => b.id === nodeId)
+              // For a base, the producer artifact ID is nodeId itself (base.id === producerId).
+              const artifactId = isMain ? root.artifactId : (baseMatch?.id ?? nodeId)
+
+              // Build a TreeNode that resolves to the producer artifact so the user
+              // sees the correct name and output columns. Mappings are NOT stored here
+              // because they live under the parent's artifact_id (see below).
               let node: TreeNode | null = artifactId ? findNode([root], artifactId) : null
               if (!node && nodeId !== "main-view") {
-                node = findNode([root], nodeId) || root.children.find(c => c.id === nodeId || c.producerArtifactId === nodeId || c.sourceRefCanonical === nodeId) || null
+                // Compare sourceRefCanonical case-insensitively since the
+                // encoded id from sourceNodeId uses encodeURIComponent but the
+                // raw sourceRef may differ in case/punctuation.
+                const nodeIdLower = nodeId.toLowerCase()
+                node = findNode([root], nodeId) || root.children.find(c =>
+                  c.id === nodeId
+                  || c.producerArtifactId === nodeId
+                  || (c.sourceRefCanonical || "").toLowerCase() === nodeIdLower
+                ) || null
               }
               if (!node && artifactId) {
-                // Synthesize a TreeNode from the session artifact
                 const artifact = session?.artifacts[artifactId]
                 if (artifact) {
                   node = {
@@ -1040,7 +1170,7 @@ export default function NestedCVTool() {
                     ownerArtifactId: artifactId,
                     sqlContent: combinedSql(artifact),
                     columns: (artifact.output_schema || []).map(c => c.column_name),
-                    mappings: session?.global_mappings.filter(m => m.artifact_id === artifactId) || [],
+                    mappings: [],
                     children: [],
                     parentId: null,
                     resolved: true,
@@ -1051,6 +1181,59 @@ export default function NestedCVTool() {
                 setError(`Cannot find mapping for node. Refresh the session and try again.`)
                 return
               }
+
+              // Resolve where the actual column mappings are stored.
+              // For the main view: under root.artifactId (all mappings belong to the root CV).
+              // For a nested CV base: under the PARENT's artifact_id, where source_ref_canonical
+              //    matches the source_ref that this nested CV resolves.
+              if (isMain) {
+                if (artifactId) {
+                  node.mappings = session?.global_mappings.filter(m => m.artifact_id === artifactId) || []
+                }
+              } else if (baseMatch) {
+                // Find the parent's artifact ID
+                const parentBase = baseMatch.parentId
+                  ? allBases.find(b => b.id === baseMatch.parentId)
+                  : null
+                const parentArtifactId: string | undefined = parentBase?.id || root.artifactId
+                if (parentArtifactId) {
+                  const parentSourceRef = (baseMatch.sourceRef || "").toUpperCase()
+                  node.ownerArtifactId = parentArtifactId
+                  const allMappings = session?.global_mappings || []
+                  // Join mappings: stored under parent's artifact_id with this source_ref.
+                  // These describe how the parent source's columns link to the
+                  // nested CV's output columns (the result of toggle→upload→join).
+                  const joinMappings = allMappings.filter(m => {
+                    if (m.artifact_id !== parentArtifactId) return false
+                    return (m.source_ref_canonical || "").toUpperCase() === parentSourceRef
+                  })
+                  // Own column mappings: the nested CV's OWN mapping info rows
+                  // (from the Excel it was uploaded with). These are stored under
+                  // the nested CV's own artifact_id. Without this fallback the
+                  // editor shows "no mappings" when the parent didn't declare
+                  // required columns during upload.
+                  const ownMappings = allMappings.filter(m => m.artifact_id === baseMatch.id)
+                  node.mappings = [...joinMappings, ...ownMappings]
+                }
+              } else {
+                // Fallback: search by artifact_id (defensive — should not normally happen)
+                if (artifactId) {
+                  node.mappings = session?.global_mappings.filter(m => m.artifact_id === artifactId) || []
+                }
+              }
+
+              if (node.mappings.length === 0 && node.name && artifactId) {
+                const producer = session?.artifacts[artifactId]
+                if (producer) {
+                  // 0 mappings is OK for a brand-new producer; surface a friendly message
+                  // only when the producer has dependencies that SHOULD have mappings.
+                  const hasDeps = (producer.dependencies || []).length > 0
+                  if (hasDeps) {
+                    setError(`No column mappings found for ${node.name}. Re-upload the nested CV and confirm the column mapping step.`)
+                  }
+                }
+              }
+
               setSelectedNodeId(node.id)
               if (kind === "Column Mapping") openMappingEditor(node)
               else openTableMappingEditor(node)
@@ -1068,6 +1251,12 @@ export default function NestedCVTool() {
                 if (!res.success) throw new Error(res.error || "Failed to remove CV")
                 invalidateResult()
                 await refreshSession(session.session_id)
+                // Clear selection if we just removed the artifact being viewed.
+                if (selectedNodeId === nodeId
+                  || selectedNodeId === artifactId
+                  || (selectedNodeId?.startsWith(`source:${artifactId}:`) ?? false)) {
+                  setSelectedNodeId(null)
+                }
               } catch (caught) {
                 setError(caught instanceof Error ? caught.message : "Failed to remove CV")
               } finally {
@@ -1083,7 +1272,7 @@ export default function NestedCVTool() {
             // Handle the Nested CV Linkage toggle:
             // - ON: opens NestedDependencyModal to upload/link another CV
             // - OFF: removes the linkage (delegated to removeNode)
-            const handleToggleLink = (nodeId: string, sourceRef: string, enabled: boolean) => {
+            const handleToggleLink = async (nodeId: string, sourceRef: string, enabled: boolean) => {
               if (enabled) {
                 // Resolve the node from nodeId and open the upload modal
                 let node: TreeNode | null = null
@@ -1103,11 +1292,17 @@ export default function NestedCVTool() {
                   setError(`Cannot link: no artifact found for this node.`)
                   return
                 }
+                // Compose a breadcrumb-style display name so the user can see
+                // they're linking a child of <parent> when the toggle fires
+                // on an already-resolved node (e.g. "SalesCV ← <sourceRef>").
+                const displayName = node.nodeType === "artifact"
+                  ? `${node.name} ← ${sourceRef}`
+                  : sourceRef
                 setPendingNestedParent({
                   nodeId,
                   consumerArtifactId: artifactId,
                   sourceRef,
-                  nodeName: sourceRef,
+                  nodeName: displayName,
                 })
                 setShowNestedModal(true)
               } else {
@@ -1125,21 +1320,18 @@ export default function NestedCVTool() {
                     && l.source_ref_canonical.toUpperCase() === sourceRef.toUpperCase()
                     && l.producer_artifact_id
                 )
-                if (link?.producer_artifact_id) {
-                  if (window.confirm(`Unlink the nested CV for ${sourceRef}?`)) {
-                    nestedDeleteCv(session.session_id, link.producer_artifact_id)
-                      .then(response => {
-                        if (!response.success) {
-                          setError(response.error || "Failed to unlink nested CV")
-                          return
-                        }
-                        invalidateResult()
-                        return refreshSession(session.session_id)
-                      })
-                      .catch(caught => {
-                        setError(caught instanceof Error ? caught.message : "Failed to unlink nested CV")
-                      })
-                  }
+                if (!link?.producer_artifact_id) return
+                if (!window.confirm(`Unlink the nested CV for ${sourceRef}?`)) return
+                setLoading(true)
+                try {
+                  const response = await nestedDeleteCv(session.session_id, link.producer_artifact_id)
+                  if (!response.success) throw new Error(response.error || "Failed to unlink nested CV")
+                  invalidateResult()
+                  await refreshSession(session.session_id)
+                } catch (caught) {
+                  setError(caught instanceof Error ? caught.message : "Failed to unlink nested CV")
+                } finally {
+                  setLoading(false)
                 }
               }
             }
@@ -1162,43 +1354,89 @@ export default function NestedCVTool() {
 
       {session && tree.length === 0 && <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-xl"><FileSpreadsheet className="w-12 h-12 mx-auto mb-3 text-gray-300" /><p className="text-gray-500 mb-4">No CVs added yet</p><button onClick={openRootUpload} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm bg-secondary text-primary rounded-lg"><Plus className="w-4 h-4" /> Add First CV or Choose History</button></div>}
 
-      {session && tree.length > 0 && !resultContent && <button onClick={handleGenerate} disabled={generating || loading} className="w-full py-3 bg-secondary text-primary rounded-lg font-semibold flex items-center justify-center gap-2 disabled:opacity-60">{generating ? <><Loader2 className="w-4 h-4 animate-spin" /> {taskMessage || "Generating…"} {taskProgress}%</> : <><GitMerge className="w-4 h-4" /> Generate Flat {session.output_format === "pyspark" ? "PySpark" : "SQL"}</>}</button>}
+      {session && tree.length > 0 && !resultContent && (
+        <div className="flex flex-col sm:flex-row gap-2">
+          <button
+            onClick={handleGenerate}
+            disabled={generating || loading}
+            className="flex-1 py-3 bg-secondary text-primary rounded-lg font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
+          >
+            {generating ? <><Loader2 className="w-4 h-4 animate-spin" /> {taskMessage || "Generating…"} {taskProgress}%</> : <><GitMerge className="w-4 h-4" /> Generate Flat {session.output_format === "pyspark" ? "PySpark" : "SQL"}</>}
+          </button>
+          {generating && taskId && (
+            <button
+              onClick={async () => {
+                // Bump the local poll ref so the in-flight loop bails out
+                // immediately; the server-side cancel flag stops the worker.
+                pollGenerationRef.current += 1
+                setGenerating(false)
+                setTaskMessage("Cancelling…")
+                try {
+                  await nestedCancelTask(taskId)
+                } catch { /* non-fatal */ }
+                setTaskId(null)
+                setTaskProgress(0)
+                setTaskMessage("")
+              }}
+              className="px-4 py-3 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium flex items-center justify-center gap-2 hover:bg-gray-50"
+              title="Cancel generation"
+            >
+              <X className="w-4 h-4" /> Cancel
+            </button>
+          )}
+        </div>
+      )}
 
       {resultContent && (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className={cn("mt-6 flex flex-col", isFullScreen && "fixed inset-0 z-50 bg-white p-6")}
+          // Fullscreen z-index sits above the modals (z-70/80/100) so the
+          // code editor remains visible even when a mapping modal is opened
+          // over it. We also opt-out of fullscreen if any modal is open so
+          // the user can interact with the modal normally.
+          className={cn(
+            "mt-6 flex flex-col",
+            isFullScreen && !showNestedModal && !showMappingEditor && !showTableMappingModal
+              && "fixed inset-0 z-[60] bg-white p-6",
+          )}
         >
           <h2 className="text-xl font-semibold text-primary mb-2">Generated Output</h2>
           <p className="text-gray-600 mb-4 text-sm">Your flattened calculation view is ready. Review the code below and download when satisfied.</p>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mb-3">
-            <Pencil
-              className="h-4 w-4 text-gray-500 hidden sm:block"
-              onClick={() => setIsFileNameEditable(!isFileNameEditable)}
-            />
             <input
               type="text"
-              value={isFileNameEditable
-                ? editableFileName.replace(/\.(sql|ipynb)$/i, "")
-                : (resultFileName?.replace(/\.(sql|ipynb)$/i, "") ?? editableFileName.replace(/\.(sql|ipynb)$/i, ""))}
-              onChange={e => setEditableFileName(`${e.target.value}.${session?.output_format === "pyspark" ? "ipynb" : "sql"}`)}
-              readOnly={!isFileNameEditable}
-              onBlur={() => {
-                if (isFileNameEditable && editableFileName) {
-                  setResultFileName(editableFileName)
+              value={renameEditing
+                ? renameDraft.replace(/\.(sql|ipynb)$/i, "")
+                : (resultFileName?.replace(/\.(sql|ipynb)$/i, "") ?? "")}
+              onChange={e => setRenameDraft(`${e.target.value}.${session?.output_format === "pyspark" ? "ipynb" : "sql"}`)}
+              readOnly={!renameEditing}
+              onFocus={() => {
+                // When the user enters edit mode, seed the draft from the
+                // current saved filename so they see the value they're editing.
+                if (!renameEditing && resultFileName) {
+                  setRenameDraft(resultFileName)
                 }
-                setIsFileNameEditable(false)
+                setRenameEditing(true)
+              }}
+              onBlur={() => {
+                if (renameEditing && renameDraft) {
+                  setResultFileName(renameDraft)
+                }
+                setRenameEditing(false)
               }}
               className="flex-grow px-3 py-2 text-sm border border-gray-300 rounded-md bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-secondary"
               aria-label="Output file name"
             />
             <button
-              onClick={() => setIsFileNameEditable(!isFileNameEditable)}
+              onClick={() => {
+                if (!renameEditing && resultFileName) setRenameDraft(resultFileName)
+                setRenameEditing(!renameEditing)
+              }}
               className="px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
-              title={isFileNameEditable ? "Save file name" : "Rename file"}
+              title={renameEditing ? "Save file name" : "Rename file"}
             >
-              {isFileNameEditable ? <Save className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
+              {renameEditing ? <Save className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
             </button>
             <button
               onClick={() => setIsEditorCollapsed(!isEditorCollapsed)}
@@ -1206,11 +1444,7 @@ export default function NestedCVTool() {
               title={isEditorCollapsed ? "Expand editor" : "Collapse editor"}
               aria-label={isEditorCollapsed ? "Expand editor" : "Collapse editor"}
             >
-              {isEditorCollapsed ? (
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-chevrons-down"><path d="m7 6 5 5 5-5" /><path d="m7 13 5 5 5-5" /></svg>
-              ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-chevrons-up"><path d="m17 11-5-5-5 5" /><path d="m17 18-5-5-5 5" /></svg>
-              )}
+              {isEditorCollapsed ? <ChevronsDown className="h-5 w-5" /> : <ChevronsUp className="h-5 w-5" />}
             </button>
             <button
               onClick={() => setIsFullScreen(!isFullScreen)}
@@ -1218,22 +1452,25 @@ export default function NestedCVTool() {
               title={isFullScreen ? "Exit fullscreen" : "Enter fullscreen"}
               aria-label={isFullScreen ? "Exit fullscreen" : "Enter fullscreen"}
             >
-              {isFullScreen ? (
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-minimize"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3m-18 0h3a2 2 0 0 1 2 2v3" /></svg>
-              ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-maximize"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3m-18 0v3a2 2 0 0 0 2 2h3" /></svg>
-              )}
+              {isFullScreen ? <Minimize2 className="h-5 w-5" /> : <Maximize2 className="h-5 w-5" />}
             </button>
           </div>
           <div className={cn("w-full mb-4 border rounded-md overflow-hidden", isFullScreen ? "flex-grow overflow-y-auto" : isEditorCollapsed ? "h-20" : "h-[400px]")}>
             {session?.output_format === "pyspark" ? (
-              <div className={cn("w-full overflow-y-auto bg-gray-50 dark:bg-gray-800", isFullScreen ? "h-full" : isEditorCollapsed ? "h-20" : "h-[400px]")}>
-                {!isEditorCollapsed && (
+              <div className={cn(
+                "w-full overflow-y-auto bg-gray-50 dark:bg-gray-800",
+                isFullScreen ? "h-full" : isEditorCollapsed ? "h-20" : "h-[400px]",
+              )}>
+                {/* Render NotebookRenderer always but hide its content via the
+                    wrapper height when collapsed, matching SqlEditor's
+                    behavior. This avoids the visual flicker and content loss
+                    of unmounting the renderer on every collapse toggle. */}
+                <div className={isEditorCollapsed ? "hidden" : "block"}>
                   <NotebookRenderer
                     content={resultContent || ""}
                     onChange={setResultContent}
                   />
-                )}
+                </div>
               </div>
             ) : (
               <SqlEditor
@@ -1245,7 +1482,7 @@ export default function NestedCVTool() {
             )}
           </div>
           <button
-            onClick={() => taskId && nestedDownloadResult(taskId)}
+            onClick={() => taskId && nestedDownloadResult(taskId, resultFileName ?? undefined)}
             className="w-full py-3 sm:py-4 rounded-lg font-medium text-sm sm:text-base bg-secondary text-primary hover:bg-secondary/90 transition-colors flex-shrink-0 min-h-[48px] sm:min-h-[44px] flex items-center justify-center"
           >
             <Download className="w-4 h-4 mr-2" />
@@ -1257,11 +1494,25 @@ export default function NestedCVTool() {
       {showNestedModal && pendingNestedParent && (() => {
         // Compute parent's required columns for this source ref so the modal
         // can auto-match them against the nested CV's output columns.
+        //
+        // Primary source: the parent dependency's required_columns_json. This is
+        // populated server-side from the workbook's SourceTable_mapping_fields
+        // column (a stringified dict) and is the most explicit declaration.
+        //
+        // Fallback: derive from the parent's own mapping_rows where
+        // source_ref_canonical matches. Many workbooks (e.g. the ones without
+        // SourceTable_mapping_fields populated for a given source) still have
+        // rows in the mapping info sheet that effectively declare which columns
+        // the parent uses from each source — so we treat them as the
+        // de-facto required-columns list when the explicit one is empty.
+        // Deduped, case-insensitive, original casing preserved.
         let parentRequiredColumns: string[] = []
         if (pendingNestedParent.consumerArtifactId && session) {
           const parentArtifact = session.artifacts[pendingNestedParent.consumerArtifactId]
           if (parentArtifact) {
             const sourceUpper = pendingNestedParent.sourceRef.toUpperCase()
+
+            // 1) Try the explicit dependency declaration
             const parentDep = parentArtifact.dependencies.find(
               d => d.source_ref_canonical.toUpperCase() === sourceUpper
             )
@@ -1274,6 +1525,28 @@ export default function NestedCVTool() {
                   if (Array.isArray(arr)) parentRequiredColumns = arr.map(String)
                 } catch { /* ignore */ }
               }
+            }
+
+            // 2) Fallback: derive from mapping_rows (sourceField where
+            //    source_ref_canonical matches this source ref). Only kicks in
+            //    when the explicit list was empty OR the dependency wasn't
+            //    found at all — i.e. a workbook whose SourceTable_mapping_fields
+            //    didn't declare columns for this source, but whose mapping info
+            //    sheet does reference it.
+            if (parentRequiredColumns.length === 0) {
+              const seen = new Set<string>()
+              const derived: string[] = []
+              for (const row of parentArtifact.mapping_rows || []) {
+                const rowSourceUpper = (row.source_ref_canonical || "").toUpperCase()
+                if (rowSourceUpper !== sourceUpper) continue
+                const col = (row.source_column_raw || "").trim()
+                if (!col) continue
+                const key = col.toUpperCase()
+                if (seen.has(key)) continue
+                seen.add(key)
+                derived.push(col)
+              }
+              parentRequiredColumns = derived
             }
           }
         }
@@ -1328,26 +1601,6 @@ export default function NestedCVTool() {
           />
         )
       })()}
-
-      {columnMappingContext && (
-        <NestedColumnMappingModal
-          key={`column-mapping-${columnMappingContext.artifactId}-${columnMappingContext.sourceRef}`}
-          isOpen={Boolean(columnMappingContext)}
-          onClose={() => setColumnMappingContext(null)}
-          parentArtifactName={columnMappingContext.parentName}
-          sourceRef={columnMappingContext.sourceRef}
-          parentRequiredColumns={columnMappingContext.parentRequiredColumns}
-          nestedOutputColumns={columnMappingContext.nestedOutputColumns}
-          existingMappings={(session?.global_mappings || []).filter(
-            m => m.artifact_id === columnMappingContext.consumerArtifactId
-              && (m.source_ref_canonical || "").toUpperCase() === columnMappingContext.sourceRef.toUpperCase()
-          )}
-          artifactId={columnMappingContext.consumerArtifactId}
-          isSaving={columnMappingSaving}
-          onSave={saveColumnMappings}
-          onSkip={() => setColumnMappingContext(null)}
-        />
-      )}
     </div>
   )
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { X, Save, AlertCircle } from "lucide-react"
 import { motion } from "framer-motion"
 
@@ -32,15 +32,23 @@ export default function TableMappingModal({
   const [validationError, setValidationError] = useState("")
   const [hasChanges, setHasChanges] = useState(false)
 
-  // Initialize rows when modal opens
+  // Initialize rows when the modal opens with a new entries list. We compare
+  // the serialized entries rather than the array reference so a parent
+  // re-render with an identical list does NOT wipe unsaved edits.
+  const entriesKey = JSON.stringify(entries)
+  const lastEntriesKeyRef = useRef<string>("")
   useEffect(() => {
-    if (isOpen) {
-      setRows(entries.map(e => ({ ...e })))
-      setHasChanges(false)
-      setValidationError("")
-      setIsSaving(false)
+    if (!isOpen) {
+      lastEntriesKeyRef.current = ""
+      return
     }
-  }, [isOpen, entries])
+    if (entriesKey === lastEntriesKeyRef.current) return
+    lastEntriesKeyRef.current = entriesKey
+    setRows(entries.map(e => ({ ...e })))
+    setHasChanges(false)
+    setValidationError("")
+    setIsSaving(false)
+  }, [isOpen, entriesKey, entries])
 
   const handleTargetChange = (index: number, value: string) => {
     const updated = [...rows]
@@ -81,10 +89,20 @@ export default function TableMappingModal({
     }
   }
 
+  // Backdrop click uses the same dirty-state guard as Cancel.
+  function handleBackdropClick(event: React.MouseEvent<HTMLDivElement>) {
+    if (event.target !== event.currentTarget) return
+    handleCloseWithConfirmation()
+  }
+
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4">
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
+    <div
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4"
+      onClick={handleBackdropClick}
+    >
       <motion.div
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}

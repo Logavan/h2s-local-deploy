@@ -45,7 +45,10 @@ export default function NodeContextMenu({
         <ContextMenuItem
           disabled={!canRemove}
           onSelect={onRemove}
-          className={cn(canRemove && "text-red-600 focus:bg-red-50 focus:text-red-700")}
+          className={cn(
+            canRemove && "text-red-600 focus:bg-red-50 focus:text-red-700",
+            !canRemove && "opacity-50",
+          )}
         >
           <Trash2 className="mr-2 h-4 w-4" />
           Remove

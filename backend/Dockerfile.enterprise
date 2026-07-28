@@ -1,55 +1,88 @@
-<arg_value># HANACV2SQL Enterprise Edition - Backend Dockerfile
-# Multi-stage build for smaller image
+# HANACV2SQL Enterprise Edition - Backend Dockerfile
+# Multi-stage build — runtime image is minimal, runs as non-root, supports
+# a read-only filesystem at container start time.
+#
+# Hardening summary (see backend/SECURITY.md for full posture):
+#   - Multi-stage build: no compiler toolchain in runtime image
+#   - Non-root user (uid 10001)
+#   - Read-only filesystem compatible (writes confined to declared volumes)
+#   - No shell in runtime base (python:3.11-slim — already slim, but we
+#     deliberately do not install bash beyond /bin/sh to limit debug surface)
+#   - HEALTHCHECK wired to /health (which verifies license integrity)
+#   - Env vars for license host-bind paths (see backend/licensing/guide.md §6.1)
 
+# -----------------------------------------------------------------------------
 # Stage 1: Builder
+# -----------------------------------------------------------------------------
 FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
-# Install build dependencies
+# Build toolchain only — never present in runtime image
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    g++ \
+        gcc \
+        g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better caching
 COPY requirements.txt .
 
-# Install dependencies to a target directory for later copy
-RUN pip install --no-cache-dir --user -r requirements.txt
+# Install Python deps into a target dir we copy out in stage 2
+RUN pip install --no-cache-dir --user --target=/install \
+        -r requirements.txt
 
+# -----------------------------------------------------------------------------
 # Stage 2: Runtime
+# -----------------------------------------------------------------------------
 FROM python:3.11-slim AS runtime
 
 WORKDIR /app
 
-# Install runtime dependencies only
+# Runtime-only system deps (none currently — libgomp if/when needed)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgomp1 \
-    && rm -rf /var/lib/apt/lists/*
+        libgomp1 \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get purge -y --auto-remove
 
-# Copy installed Python packages from builder
-COPY --from=builder /root/.local /usr/local/lib/python3.11/site-packages
+# Bring Python deps across from the builder
+COPY --from=builder /install /usr/local/lib/python3.11/site-packages
 
-# Copy application code
+# Application code
 COPY . .
 
-# Create data directory for outputs
-RUN mkdir -p /data/outputs
+# -----------------------------------------------------------------------------
+# Non-root user — the app never runs as root
+# -----------------------------------------------------------------------------
+# uid 10001 is in the "system" range; unlikely to collide with customer UIDs.
+RUN groupadd -g 10001 hanacv2sql \
+    && useradd  -u 10001 -g hanacv2sql -m -s /sbin/nologin hanacv2sql
 
-# Set environment variables
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV OUTPUT_DIR=/data/outputs
-ENV PORT=8080
-ENV FLASK_ENV=production
+# Declare writable directories — everything else is read-only at runtime
+RUN mkdir -p /data/outputs /etc/license.d /host/etc /host/sys/class/dmi/id \
+    && chown -R hanacv2sql:hanacv2sql /app /data/outputs /etc/license.d
 
-# Expose port
+# -----------------------------------------------------------------------------
+# License host-bind defaults (see backend/licensing/guide.md §6.1)
+# -----------------------------------------------------------------------------
+ENV LICENSE_HOST_MACHINE_ID_PATH=/host/etc/machine-id
+ENV LICENSE_HOST_DMI_UUID_PATH=/host/sys/class/dmi/id/product_uuid
+
+# Standard env
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    OUTPUT_DIR=/data/outputs \
+    PORT=8080 \
+    FLASK_ENV=production \
+    # Ensure Flask runs in production mode (no debug, no reloader)
+    FLASK_DEBUG=0
+
 EXPOSE 8080
 
-# Health check
+# Healthcheck — confirms license gate passed and Gemini is reachable
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8080/health', timeout=5).raise_for_status()" || exit 1
+    CMD python -c "import requests; requests.get('http://localhost:8080/health', timeout=5).raise_for_status()" \
+    || exit 1
 
-# Run the enterprise Flask app
+# Drop to non-root user BEFORE launching
+USER hanacv2sql
+
 CMD ["python", "flask_app.py"]
